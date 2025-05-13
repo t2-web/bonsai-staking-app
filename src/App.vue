@@ -6,10 +6,12 @@
         <button class="nav-btn">TOP</button>
         <button class="nav-btn active">Staking</button>
         <div class="spacer"></div>
-        <button v-if="!address" class="connect-btn" @click="connectWallet">
+        <!-- 接続前 -->
+        <button v-if="!isConnected" class="connect-btn" @click="connectWallet">
           Connect Wallet
         </button>
-        <div v-else class="wallet-chip">
+        <!-- 接続後：クリックで切断 -->
+        <div v-else class="wallet-chip" @click="disconnectWallet">
           {{ shortAddress }}
         </div>
       </div>
@@ -25,7 +27,7 @@
       <!-- BALANCE LINE -->
       <div class="balance-line">
         <span class="label">My $BONSAICOIN:</span>
-        <span class="value">{{ formatNumber(balance) }}</span>
+        <span class="value">{{ displayBalance }}</span>
       </div>
 
       <!-- STAKE INPUT -->
@@ -88,79 +90,136 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { ethers, BrowserProvider } from 'ethers';
-import { Web3Modal } from '@web3modal/standalone';
+import { ref, computed, onMounted } from 'vue'
+import { ethers, BrowserProvider } from 'ethers'
 
-/* ────────── WALLET CONNECT ────────── */
-const modal = new Web3Modal({
-  projectId: '11de27f464d53a18220d68841ac45f99', 
-  walletConnectVersion: 2,
-  defaultChain: { id: 84532, name: 'Base Sepolia'}
-});
+import ERC20 from '@/abi/ERC20.json'
+import StakingContract from '@/abi/ERC20Staking.json'
 
-/* ────────── STATE ────────── */
-const address = ref('');
-const provider = ref<BrowserProvider | null>(null);
-const signer = ref<ethers.Signer | null>(null);
+const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
+const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
 
-const balance = ref(999999); // mock, replace with on‑chain
-const amount = ref('');
-const staked = ref(100);
-const claimable = ref(100);
-const claimed = ref(100);
-const status = ref('');
+// ────────── STATE ──────────
+const address  = ref('')
+const provider = ref<BrowserProvider>()
+const signer   = ref()
+const status   = ref('')
 
-/* ────────── COMPUTED ────────── */
-const shortAddress = computed(() =>
-  address.value ? `${address.value.slice(0,6)}…${address.value.slice(-4)}` : ''
-);
+// const balance   = ref(9999999) // 使われない初期値
+const balance   = ref<number | null>(null)
+const displayBalance = computed(() =>
+  address.value
+    ? balance.value !== null   // 取得済みならフォーマット
+        ? formatNumber(balance.value)
+        : '…'                  // 取得中（アドレスはあるが balance=null）
+    : '-'                      // 未接続
+)
+const amount    = ref('') // ユーザー入力値
+const staked    = ref(100)
+const claimable = ref(100)
+const claimed   = ref(100)
 
 /* ────────── HELPERS ────────── */
 function formatNumber(n: number) {
-  return n.toLocaleString();
+  return n.toLocaleString()
 }
+function setMax() { amount.value = String(balance.value) }
 
-function setMax() {
-  amount.value = String(balance.value);
-}
+/* ────────── COMPUTED ────────── */
+/* ────────── 接続済みはADDRESS 表示 ────────── */
+const shortAddress = computed(() =>
+  address.value ? `${address.value.slice(0, 6)}…${address.value.slice(-4)}` : ''
+)
 
-/* ────────── WALLET FUNCTIONS ────────── */
-async function connectWallet() {
+const isConnected = computed(() => !!address.value)
+
+/* ────────── WALLET: MetaMask only ────────── */
+async function connectWallet () {
+  const mm = (window as any).ethereum
+  if (!mm) {
+    status.value = '❌ MetaMask が見つかりません'
+    return
+  }
+
   try {
-    const ses = await modal.connect();
-    address.value = ses.accounts[0];
-    provider.value = new BrowserProvider(window.ethereum as any);
-    signer.value = await provider.value.getSigner();
-    status.value = 'Wallet connected';
-    // TODO: fetch real data
-  } catch {
-    status.value = 'Connection cancelled';
+    // ① 既に接続済みか確認
+    let accounts: string[] = await mm.request({ method: 'eth_accounts' })
+
+    // ② 未接続ならリクエストを表示
+    if (accounts.length === 0) {
+      accounts = await mm.request({ method: 'eth_requestAccounts' })
+    }
+
+    const tmpProvider = new BrowserProvider(mm)   // ← ここでエラーが出ていた
+    const tmpSigner   = await tmpProvider.getSigner()
+
+    provider.value = tmpProvider
+    signer.value   = tmpSigner
+    address.value  = accounts[0]
+    status.value   = '✅ Connected'
+    balance.value  = null // ← 古い表示を即クリア
+
+    // connectWallet の成功ブロック末尾で呼ぶ
+    await fetchTokenBalance()
+    // ウォレット側でアカウントを切り替えたら残高も更新
+    mm.on?.('accountsChanged', async (a: string[]) => {
+      address.value = a[0] ?? ''
+      await fetchTokenBalance()
+    })
+    console.log('Connected - balance.value:', balance.value)
+  } catch (e) {
+    console.error(e)
+    status.value = '❌ 接続をキャンセル／失敗'
   }
 }
 
-/* ────────── STAKE & CLAIM (mock) ────────── */
-async function stake() {
-  if (!signer.value) return;
-  status.value = '⏳ Staking…';
-  await new Promise(r => setTimeout(r, 800));
-  staked.value += Number(amount.value);
-  balance.value -= Number(amount.value);
-  amount.value = '';
-  status.value = '✅ Stake success';
+/* ——————— 切断処理 ——————— */
+function disconnectWallet () {
+  provider.value = undefined
+  signer.value   = undefined
+  address.value  = ''
+  balance.value  = null
+  status.value   = '👋 Disconnected'
 }
 
-async function claimAll() {
-  if (!signer.value) return;
-  status.value = '⏳ Claiming…';
-  await new Promise(r => setTimeout(r, 800));
-  claimed.value += claimable.value;
-  claimable.value = 0;
-  status.value = '✅ Claim success';
+/* ────────── 自動復旧 (任意) ────────── */
+onMounted(() => {
+  connectWallet()    // ページ読み込み時に一度だけ試行
+})
+
+/* ────────── Approve & getBalance ────────── */
+
+// JsonRpcProviderは　private-method 競合がそもそも起きない
+const staticProvider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+
+async function fetchTokenBalance () {
+  // if (!signer.value) return
+  // const erc20 = new ethers.Contract(tokenAddress, ERC20, signer.value)
+  console.log('fetchTokenBalance')
+  if (!provider.value) return
+  const erc20  = new ethers.Contract(tokenAddress, ERC20, staticProvider)
+  console.log('bal_s')
+  const raw = await erc20.balanceOf(address.value)
+  console.log('bal') 
+  console.log('dec_s')
+  const dec    = await erc20.decimals()
+  console.log('dec')
+  balance.value = parseFloat(ethers.formatUnits(raw, dec))
 }
 
-function goTop() {
-  window.location.href = '/';
+/* ────────── STAKE & CLAIM (ダミー) ────────── */
+async function stake () {
+  if (!signer.value || !amount.value) return
+  staked.value  += Number(amount.value)
+  balance.value -= Number(amount.value)
+  amount.value   = ''
+  status.value   = '✅ Stake success'
+}
+async function claimAll () {
+  if (!signer.value || claimable.value === 0) return
+  claimed.value += claimable.value
+  claimable.value = 0
+  status.value    = '✅ Claim success'
 }
 </script>
 
@@ -216,13 +275,17 @@ function goTop() {
   cursor: pointer;
 }
 
-.wallet-chip {
+/* .wallet-chip {
   border: 1px solid #ffffff;
   border-radius: 16px;
   padding: 4px 12px;
   font-size: 14px;
+} */
+.wallet-chip {
+  border: 1px solid #ffffff;
+  padding: 4px 12px;
+  font-size: 14px;
 }
-
 /***** Main Content *****/
 .main-container {
   max-width: 680px;

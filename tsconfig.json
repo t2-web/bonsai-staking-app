@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    // JS プロジェクトでも OK
+    "allowJs": true, // *.js を型チェック対象に
+    "resolveJsonModule": true, // ← これがポイント
+    "esModuleInterop": true, // default import を許可
+    "strict": false // 好みに応じて
+  },
+  "include": ["src/**/*"]
+}
