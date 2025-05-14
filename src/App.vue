@@ -3,7 +3,7 @@
     <!-- ────────── HEADER ────────── -->
     <header class="app-header">
       <div class="nav-container">
-        <button class="nav-btn">TOP</button>
+        <button class="nav-btn" @click="goTop">TOP</button>
         <button class="nav-btn active">Staking</button>
         <div class="spacer"></div>
         <!-- 接続前 -->
@@ -21,7 +21,8 @@
     <main class="main-container">
       <!-- LOGO -->
       <div class="logo-container">
-        <img src="../src/assets/logo.png" alt="BONSAICOIN" class="logo" />
+        <!-- <img src="../src/assets/logo.png" alt="BONSAICOIN" class="logo" /> -->
+        <img src="https://static.wixstatic.com/media/3e4de0_efd319fa51504fcbafb6b96c42b82040~mv2.png/v1/crop/x_252,y_141,w_459,h_259/fill/w_388,h_219,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/BONSAICOIN_ogp.png" alt="BONSAICOIN" class="logo" />
       </div>
 
       <!-- BALANCE LINE -->
@@ -54,15 +55,15 @@
       <div class="stats-container">
         <div class="stat-row">
           <span class="stat-label">Stake Total Amount:</span>
-          <span class="stat-value">{{ formatNumber(staked) }}</span>
+          <span class="stat-value">{{ displayStaked }}</span>
         </div>
         <div class="stat-row">
           <span class="stat-label">Claimable Amount:</span>
-          <span class="stat-value">{{ formatNumber(claimable) }}</span>
+          <span class="stat-value">{{ displayClaimable }}</span>
         </div>
         <div class="stat-row">
           <span class="stat-label">Claimed Amount:</span>
-          <span class="stat-value">{{ formatNumber(claimed) }}</span>
+          <span class="stat-value">{{ displayClaimed }}</span>
         </div>
       </div>
 
@@ -76,14 +77,14 @@
       </button>
 
       <!-- TX STATUS -->
-      <div class="status-text">{{ status }}</div>
+      <!-- <div class="status-text">{{ status }}</div> -->
     </main>
 
     <!-- ────────── FOOTER ────────── -->
     <footer class="app-footer">
-      <div class="social-icons">
+      <!-- <div class="social-icons">
         <div v-for="i in 6" :key="i" class="social-icon">mdi-circle-small</div>
-      </div>
+      </div> -->
       <div class="copyright">© 2024 by SBONSAICOIN</div>
     </footer>
   </div>
@@ -105,8 +106,34 @@ const provider = ref<BrowserProvider>()
 const signer   = ref()
 const status   = ref('')
 
-// const balance   = ref(9999999) // 使われない初期値
 const balance   = ref<number | null>(null)
+const amount    = ref('') // ユーザー入力値
+const staked    = ref<number | null>(null) //total staked = claimable+claimed 
+const claimable = ref<number | null>(null)   // ← 初期値 null で「取得前」を示す
+const claimed   = ref<number | null>(null)
+
+
+// TODO: env=stgの場合に分岐させてもいい
+function goTop() {
+  window.location.href = 'https://coin.bonsainft.club/'   // ルート URL へリダイレクト
+}
+/* ────────── HELPERS ────────── */
+function formatNumber(n: number) {
+  return n.toLocaleString()
+}
+// function setMax() { amount.value = String(balance.value) }
+function setMax() { 
+  amount.value = formatNumber(balance.value)
+  if (balance.value !== null)
+    amount.value = formatNumber(balance.value)
+ }
+
+/* ────────── COMPUTED ────────── */
+/* ────────── 接続済みはADDRESS 表示 ────────── */
+const shortAddress = computed(() =>
+  address.value ? `${address.value.slice(0, 6)}…${address.value.slice(-4)}` : ''
+)
+const isConnected = computed(() => !!address.value)
 const displayBalance = computed(() =>
   address.value
     ? balance.value !== null   // 取得済みならフォーマット
@@ -114,24 +141,16 @@ const displayBalance = computed(() =>
         : '…'                  // 取得中（アドレスはあるが balance=null）
     : '-'                      // 未接続
 )
-const amount    = ref('') // ユーザー入力値
-const staked    = ref(100)
-const claimable = ref(100)
-const claimed   = ref(100)
 
-/* ────────── HELPERS ────────── */
-function formatNumber(n: number) {
-  return n.toLocaleString()
-}
-function setMax() { amount.value = String(balance.value) }
-
-/* ────────── COMPUTED ────────── */
-/* ────────── 接続済みはADDRESS 表示 ────────── */
-const shortAddress = computed(() =>
-  address.value ? `${address.value.slice(0, 6)}…${address.value.slice(-4)}` : ''
+const displayClaimable = computed(() =>
+  claimable.value === null ? '…' : formatNumber(claimable.value)
 )
-
-const isConnected = computed(() => !!address.value)
+const displayClaimed = computed(() =>
+  claimed.value === null ? '…' : formatNumber(claimed.value)
+)
+const displayStaked = computed(() =>
+  staked.value === null ? '…' : formatNumber(staked.value)
+)
 
 /* ────────── WALLET: MetaMask only ────────── */
 async function connectWallet () {
@@ -161,10 +180,13 @@ async function connectWallet () {
 
     // connectWallet の成功ブロック末尾で呼ぶ
     await fetchTokenBalance()
+    await fetchClaimData()  
+
     // ウォレット側でアカウントを切り替えたら残高も更新
     mm.on?.('accountsChanged', async (a: string[]) => {
       address.value = a[0] ?? ''
       await fetchTokenBalance()
+      await fetchClaimData() 
     })
     console.log('Connected - balance.value:', balance.value)
   } catch (e) {
@@ -207,19 +229,51 @@ async function fetchTokenBalance () {
   balance.value = parseFloat(ethers.formatUnits(raw, dec))
 }
 
+async function fetchClaimData () {
+  if (!provider.value || !address.value) return
+
+  // const staking = new ethers.Contract(stakeContractAddress, StakingContract, provider.value)
+  const staking = new ethers.Contract(stakeContractAddress, StakingContract, staticProvider)
+  const stakes  = await staking.getStakes(address.value)
+
+  /* --- パターン B: getStakes(addr) で計算する場合 ------------------ */
+  
+  let totalClaimable = BigInt(0)
+  let totalClaimed   = BigInt(0)
+
+  for (const s of stakes) {
+    if (s.claimed) {
+      totalClaimed   += s.amount     // uint256 → bigint
+    } else {
+      totalClaimable += s.amount
+    }
+  }
+
+  claimable.value = Number(ethers.formatEther(totalClaimable))
+  claimed.value   = Number(ethers.formatEther(totalClaimed))
+  staked.value    = claimable.value + claimed.value
+  /* -------------------------------------------------------------- */
+}
 /* ────────── STAKE & CLAIM (ダミー) ────────── */
 async function stake () {
   if (!signer.value || !amount.value) return
-  staked.value  += Number(amount.value)
+
+  // 「1,234,567」→ 「1234567」→ 数値 1234567
+  const amt = Number(amount.value.replace(/,/g, ''))
+
+  // staked.value  += Number(amt)
   balance.value -= Number(amount.value)
   amount.value   = ''
   status.value   = '✅ Stake success'
+  await fetchClaimData() 
 }
+
 async function claimAll () {
   if (!signer.value || claimable.value === 0) return
-  claimed.value += claimable.value
+  // claimed.value += claimable.value
   claimable.value = 0
   status.value    = '✅ Claim success'
+  await fetchClaimData()
 }
 </script>
 
@@ -244,21 +298,31 @@ async function claimAll () {
   display: flex;
   align-items: center;
   height: 100%;
+  max-width:980px;     /* TOP ページと同じ固定幅 */
+  margin:0 auto;       /* 余白を左右に均等配置 */
+  width:100%;          /* 画面が狭い時は 100% で縮む */
 }
 
-.nav-btn {
-  background: transparent;
-  border: none;
-  color: #888888;
-  font-size: 16px;
-  font-weight: 500;
-  margin-right: 16px;
-  cursor: pointer;
+.nav-btn{
+  font-family:"Satoshi",sans-serif;   /* GoogleFonts 可 */
+  font-size:20px;                     /* ← TOP と同じ */
+  letter-spacing:0.05em;
+  font-weight:400;
+  color:#c4c4c4;
+  background:transparent;
+  border:none;
+  margin-right:48px;                  /* ← 項目間 48px */
+  cursor:pointer;
+  transition:color .2s;
 }
 
 .nav-btn.active {
   color: #ffffff;
   font-weight: 700;
+}
+
+.nav-btn:last-of-type{
+  margin-right:0;
 }
 
 .spacer {
@@ -288,7 +352,8 @@ async function claimAll () {
 }
 /***** Main Content *****/
 .main-container {
-  max-width: 680px;
+  /* max-width: 680px; */
+  max-width: 980px;
   margin: 0 auto;
   padding: 48px 16px 64px;
   text-align: center;

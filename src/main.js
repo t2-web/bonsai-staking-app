@@ -12,7 +12,7 @@ const vuetify = createVuetify({
       dark: {
         dark: true,
         colors: {
-          background: '#1a1a1a',
+          background: '#212321',
           surface: '#1a1a1a',
           primary: '#ffffff',
           'primary-darken-1': '#888888',
