@@ -3,7 +3,8 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { createVuetify } from 'vuetify'
 import 'vuetify/styles'
-
+import Toast from 'vue-toastification'
+import 'vue-toastification/dist/index.css'
 // 先にVuetifyインスタンスを作成
 const vuetify = createVuetify({
   theme: {
@@ -23,5 +24,7 @@ const vuetify = createVuetify({
   }
 })
 
-// 作成したvuetifyインスタンスを使用
-createApp(App).use(vuetify).mount('#app')
+const app = createApp(App)
+app.use(vuetify)
+app.use(Toast, { position: 'bottom-right', timeout: 5000 })
+app.mount('#app')
