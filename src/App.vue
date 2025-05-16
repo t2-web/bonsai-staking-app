@@ -77,7 +77,12 @@
       </button>
 
       <!-- TX STATUS -->
-      <!-- <div class="status-text">{{ status }}</div> -->
+      <div class="tx-link" v-if="txFilterUrl">
+        Stake Tx Link : 
+        <a :href="`https://${txFilterUrl}`" target="_blank" rel="noopener">
+          <span class="hash">{{ shortFilterUrl }}</span>
+        </a>
+      </div>
     </main>
 
     <!-- ────────── FOOTER ────────── -->
@@ -98,14 +103,25 @@ import { useToast, TYPE } from 'vue-toastification'
 import ERC20 from '@/abi/ERC20.json'
 import StakingContract from '@/abi/ERC20Staking.json'
 
+// Stakelist
+// https://base-sepolia.blockscout.com/advanced-filter?transaction_types=ERC-20%2CERC-404%2CERC-721%2CERC-1155&to_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902&from_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902%2C0x9035ae14AF7C27cEffcbc1Ce626e0663f877813f
+
+/* ---------- ネットワーク定義 ---------- */
+// テストネット
+const CHAIN_ID      = 84532                              // 10進数
+const RPC_URL       = 'https://sepolia.base.org'
+const EXPLORER_URL  = 'base-sepolia.blockscout.com'
+const CHAIN_NAME    = 'Base Sepolia'
 const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
 const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
 
-/* ---------- ネットワーク定義 ---------- */
-const CHAIN_ID      = 84532                              // ← 10 進のみ！
-const RPC_URL       = 'https://sepolia.base.org'
-const EXPLORER_URL  = 'https://sepolia.basescan.org'
-const CHAIN_NAME    = 'Base Sepolia'
+// メインネット
+// const CHAIN_ID      = 
+// const RPC_URL       = 'https://base.org'
+// const EXPLORER_URL  = 'base.blockscout.com'
+// const CHAIN_NAME    = 'Base'
+// const tokenAddress = ''
+// const stakeContractAddress = ''
 
 // ────────── STATE ──────────
 const address  = ref('')
@@ -141,10 +157,11 @@ function formatNumber(n: number) {
 
 // function setMax() { amount.value = String(balance.value) }
 function setMax() { 
-  amount.value = formatNumber(balance.value)
-  if (balance.value !== null)
+  if (balance.value !== null) {
+    // balance.valueがnullでない場合にのみ、amount.valueを更新
     amount.value = formatNumber(balance.value)
- }
+  }
+}
 
 /* ────────── COMPUTED ────────── */
 /* ────────── 接続済みはADDRESS 表示 ────────── */
@@ -152,6 +169,7 @@ const shortAddress = computed(() =>
   address.value ? `${address.value.slice(0, 6)}…${address.value.slice(-4)}` : ''
 )
 const isConnected = computed(() => !!address.value)
+
 const displayBalance = computed(() =>
   address.value
     ? balance.value !== null   // 取得済みならフォーマット
@@ -170,6 +188,24 @@ const displayStaked = computed(() =>
   staked.value === null ? '…' : formatNumber(staked.value)
 )
 
+// stakeContractHistoryUrlの作成
+const txFilterUrl = computed(() => {
+  if (!address.value) return ''
+
+  const qs = new URLSearchParams({
+    transaction_types: 'ERC-20,ERC-404,ERC-721,ERC-1155',
+    to_address_hashes_to_include: stakeContractAddress,
+    from_address_hashes_to_include: address.value
+  }).toString()
+
+  return `${EXPLORER_URL}/advanced-filter?${qs}`
+})
+
+const shortFilterUrl = computed(() => {
+  if (!txFilterUrl.value) return ''
+  const full = txFilterUrl.value
+  return full.length > 48 ? full.slice(0, 32) + '…' + full.slice(-10) : full
+})
 
 /* ────────── WALLET: MetaMask only ────────── */
 async function connectWallet () {
@@ -354,7 +390,7 @@ async function stake () {
           target: '_blank',
           style: 'color:#fff;text-decoration:underline;'
         },
-        '✅ Stake Confirmed. Tx: ' + txS.hash.slice(0, 8) + '…'
+        'Stake Confirmed. Tx: ' + txS.hash.slice(0, 8) + '…'
       ),
       options: {
         type: TYPE.SUCCESS,
@@ -597,6 +633,18 @@ async function claimAll () {
   color: #888888;
   margin-top: 16px;
   font-size: 12px;
+}
+
+.tx-link {
+  font-size: 14px;
+  margin: 5rem 0;
+}
+.tx-link a {
+  color: #63b3ff;
+  text-decoration: none;
+}
+.tx-link a:hover {
+  text-decoration: underline;
 }
 
 /* Footer */
