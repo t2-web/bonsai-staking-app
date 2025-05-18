@@ -43,7 +43,7 @@
           <button class="max-btn" @click="setMax">max</button>
         </div>
         <button 
-          class="stake-btn"
+          class="stake-btn btn"
           :disabled="!amount || !address"
           @click="stake"
         >
@@ -69,7 +69,7 @@
 
       <!-- CLAIM BUTTON -->
       <button 
-        class="claim-btn"
+        class="claim-btn btn"
         :disabled="claimable === 0 || !address"
         @click="claimAll"
       >
@@ -83,13 +83,17 @@
           <span class="hash">{{ shortFilterUrl }}</span>
         </a>
       </div>
+
+      <div class="tx-link" >
+        Stake Address : 
+        <a :href="`https://${EXPLORER_URL}/address/${stakeContractAddress}`" target="_blank" rel="noopener">
+          <span class="hash">{{ stakeContractAddress }}</span>
+        </a>
+      </div>
     </main>
 
     <!-- ────────── FOOTER ────────── -->
     <footer class="app-footer">
-      <!-- <div class="social-icons">
-        <div v-for="i in 6" :key="i" class="social-icon">mdi-circle-small</div>
-      </div> -->
       <div class="copyright">© 2024 by SBONSAICOIN</div>
     </footer>
   </div>
@@ -108,20 +112,20 @@ import StakingContract from '@/abi/ERC20Staking.json'
 
 /* ---------- ネットワーク定義 ---------- */
 // テストネット
-const CHAIN_ID      = 84532                              // 10進数
-const RPC_URL       = 'https://sepolia.base.org'
-const EXPLORER_URL  = 'base-sepolia.blockscout.com'
-const CHAIN_NAME    = 'Base Sepolia'
-const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
-const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
+// const CHAIN_ID      = 84532                              // 10進数
+// const RPC_URL       = 'https://sepolia.base.org'
+// const EXPLORER_URL  = 'base-sepolia.blockscout.com'
+// const CHAIN_NAME    = 'Base Sepolia'
+// const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
+// const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
 
 // メインネット
-// const CHAIN_ID      = 
-// const RPC_URL       = 'https://base.org'
-// const EXPLORER_URL  = 'base.blockscout.com'
-// const CHAIN_NAME    = 'Base'
-// const tokenAddress = ''
-// const stakeContractAddress = ''
+const CHAIN_ID      = 8453
+const RPC_URL       = 'https://base.drpc.org'
+const EXPLORER_URL  = 'base.blockscout.com'
+const CHAIN_NAME    = 'Base'
+const tokenAddress = '0xA0aeBd4Ae5F256B72B7D43f67eD934237Adb1AeE' //bonsai
+const stakeContractAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3' //1hour
 
 // ────────── STATE ──────────
 const address  = ref('')
@@ -147,7 +151,7 @@ function goTop() {
 }
 
 const staticProvider = new ethers.providers.JsonRpcProvider(
-  'https://sepolia.base.org'            // ← ③
+  RPC_URL         // ← ③
 )
 
 /* ────────── HELPERS ────────── */
@@ -155,7 +159,6 @@ function formatNumber(n: number) {
   return n.toLocaleString()
 }
 
-// function setMax() { amount.value = String(balance.value) }
 function setMax() { 
   if (balance.value !== null) {
     // balance.valueがnullでない場合にのみ、amount.valueを更新
@@ -193,7 +196,6 @@ const txFilterUrl = computed(() => {
   if (!address.value) return ''
 
   const qs = new URLSearchParams({
-    transaction_types: 'ERC-20,ERC-404,ERC-721,ERC-1155',
     to_address_hashes_to_include: stakeContractAddress,
     from_address_hashes_to_include: address.value
   }).toString()
@@ -301,25 +303,37 @@ async function fetchClaimData () {
 
   // const staking = new ethers.Contract(stakeContractAddress, StakingContract, provider.value)
   const staking = markRaw(new ethers.Contract(stakeContractAddress, StakingContract, staticProvider))
-  const stakes  = await staking.getStakes(address.value)
 
-  /* --- パターン B: getStakes(addr) で計算する場合 ------------------ */
+  const stakes  = await staking.getStakes(address.value)
+  const lockDuration  = Number(await staking.LOCK_DURATION())
+  const now           = Math.floor(Date.now() / 1e3)
+  console.log('lockDuration:', lockDuration, ', now:', now)
   
-  let unlocked = ethers.BigNumber.from(0) 
-  let locked   = ethers.BigNumber.from(0) 
+  let unlocked = ethers.BigNumber.from(0)  // claimable
+  let locked   = ethers.BigNumber.from(0)  // まだロック中
+  let already  = ethers.BigNumber.from(0)  // 既に請求済み
 
   for (const s of stakes) {
     const amt  = ethers.BigNumber.from(s[0])      // ← ⑥
-    const flag = Boolean(s[2])
-    flag ? unlocked = unlocked.add(amt) : locked = locked.add(amt)
+    const startTs    = Number(s[1])
+    const isClaimed  = Boolean(s[2])
+
+    if (isClaimed) {
+      already = already.add(amt)
+    } else if (now >= startTs + lockDuration) {
+      unlocked = unlocked.add(amt)         // ロック解除済み・未請求
+    } else {
+      locked   = locked.add(amt)           // まだロック中
+    }
   }
 
   claimable.value = Number(ethers.utils.formatEther(unlocked))
-  claimed.value   = Number(ethers.utils.formatEther(locked))
-  staked.value    = claimable.value + claimed.value
-  /* -------------------------------------------------------------- */
+  claimed.value   = Number(ethers.utils.formatEther(already))
+  staked.value    = Number(
+    ethers.utils.formatEther(unlocked.add(locked).add(already))
+  )
 }
-/* ────────── STAKE & CLAIM (ダミー) ────────── */
+/* ────────── STAKE  ────────── */
 async function stake () {
   if (!signer.value || !amount.value || !address.value) return
 
@@ -349,7 +363,7 @@ async function stake () {
         content: h(
             'a',
             {
-              href: `${EXPLORER_URL}/tx/${txA.hash}`,
+              href: `https://${EXPLORER_URL}/tx/${txA.hash}`,
               target: '_blank',
               style: 'color:#fff;text-decoration:underline;'
             },
@@ -386,7 +400,7 @@ async function stake () {
       content: h(
         'a',
         {
-          href: `${EXPLORER_URL}/tx/${txS.hash}`,
+          href: `https://${EXPLORER_URL}/tx/${txS.hash}`,
           target: '_blank',
           style: 'color:#fff;text-decoration:underline;'
         },
@@ -416,12 +430,57 @@ async function stake () {
   }
 }
 
+// unlocked & un-claimed stake を 1Tx でまとめて請求
+/* ────────── Claim  ────────── */
 async function claimAll () {
   if (!signer.value || claimable.value === 0) return
-  // claimed.value += claimable.value
-  claimable.value = 0
-  status.value    = '✅ Claim success'
-  await fetchClaimData()
+  
+  const staking = markRaw(
+    new ethers.Contract(stakeContractAddress, StakingContract, signer.value)
+  )
+
+  try {
+    await staking.callStatic.claimAll({ gasLimit: 12_000_000 })
+  } catch (e) {
+    const msg = (e as any).shortMessage || (e as any).message || 'Revert'
+    toast.error(`❌ ${msg}`, { timeout: 6000 })
+    return
+  }
+  /* ───── 送信 & 待機 ─────────────────────────── */
+  const pending = toast.info('⏳ Claiming…', { timeout: false })
+  status.value  = '⏳ Claiming…'
+
+  try {
+    const tx = await staking.claimAll()
+    await tx.wait()
+
+    /* ✔ 成功トーストに差し替え */
+    toast.update(pending, {
+      content: h(
+        'a',
+        {
+          href: `https://${EXPLORER_URL}/tx/${tx.hash}`,
+          target: '_blank',
+          style: 'color:#fff;text-decoration:underline;'
+        },
+        'Claim Confirmed. Tx: ' + tx.hash.slice(0, 8) + '…'
+      ),
+      options: { type: TYPE.SUCCESS, timeout: 8000 }
+    })
+
+    /* 状態リフレッシュ */
+    status.value   = '✅ Claim success'
+    claimable.value = 0               // UI 上の即時反映
+    await fetchTokenBalance()
+    await fetchClaimData()
+  } catch (err) {
+    const msg = (err as any).shortMessage || (err as any).message || '❌ Claim failed'
+    toast.update(pending, {
+      content: msg,
+      options: { type: TYPE.ERROR, timeout: 8000 }
+    })
+    status.value = '❌ Claim failed'
+  }
 }
 </script>
 
@@ -623,9 +682,20 @@ async function claimAll () {
   cursor: pointer;
 }
 
-.claim-btn:disabled {
+.btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn:not(:disabled):hover{
+  transform:translateY(-2px) scale(1.03);
+  box-shadow:0 6px 16px rgba(0,0,0,.35);
+  background:#3a3a3a;                 /* ほんのり明るく */
+}
+
+.claim-btn:not(:disabled):active{
+  transform:translateY(0) scale(.98);
+  box-shadow:0 3px 8px rgba(0,0,0,.25);
 }
 
 .status-text {
