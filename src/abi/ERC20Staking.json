@@ -119,6 +119,13 @@
   },
   {
     "inputs": [],
+    "name": "claimAll",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "getAllStakers",
     "outputs": [
       {

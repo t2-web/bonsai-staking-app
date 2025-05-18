@@ -26,5 +26,5 @@ const vuetify = createVuetify({
 
 const app = createApp(App)
 app.use(vuetify)
-app.use(Toast, { position: 'bottom-right', timeout: 5000 })
+app.use(Toast, { position: 'bottom-left', timeout: 5000 })
 app.mount('#app')

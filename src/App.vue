@@ -43,7 +43,7 @@
           <button class="max-btn" @click="setMax">max</button>
         </div>
         <button 
-          class="stake-btn"
+          class="stake-btn btn"
           :disabled="!amount || !address"
           @click="stake"
         >
@@ -69,7 +69,7 @@
 
       <!-- CLAIM BUTTON -->
       <button 
-        class="claim-btn"
+        class="claim-btn btn"
         :disabled="claimable === 0 || !address"
         @click="claimAll"
       >
@@ -77,56 +77,94 @@
       </button>
 
       <!-- TX STATUS -->
-      <!-- <div class="status-text">{{ status }}</div> -->
+      <div class="tx-link" v-if="txFilterUrl">
+        Stake Tx Link : 
+        <a :href="`https://${txFilterUrl}`" target="_blank" rel="noopener">
+          <span class="hash">{{ shortFilterUrl }}</span>
+        </a>
+      </div>
+
+      <div class="tx-link" >
+        Stake Address : 
+        <a :href="`https://${EXPLORER_URL}/address/${stakeContractAddress}`" target="_blank" rel="noopener">
+          <span class="hash">{{ stakeContractAddress }}</span>
+        </a>
+      </div>
     </main>
 
     <!-- ────────── FOOTER ────────── -->
     <footer class="app-footer">
-      <!-- <div class="social-icons">
-        <div v-for="i in 6" :key="i" class="social-icon">mdi-circle-small</div>
-      </div> -->
       <div class="copyright">© 2024 by SBONSAICOIN</div>
     </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { ethers, BrowserProvider } from 'ethers'
+import { ref, computed, onMounted, markRaw, h } from 'vue'
+import { ethers } from 'ethers'
+import { useToast, TYPE } from 'vue-toastification'
 
 import ERC20 from '@/abi/ERC20.json'
 import StakingContract from '@/abi/ERC20Staking.json'
 
-const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
-const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
+// Stakelist
+// https://base-sepolia.blockscout.com/advanced-filter?transaction_types=ERC-20%2CERC-404%2CERC-721%2CERC-1155&to_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902&from_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902%2C0x9035ae14AF7C27cEffcbc1Ce626e0663f877813f
+
+/* ---------- ネットワーク定義 ---------- */
+// テストネット
+// const CHAIN_ID      = 84532                              // 10進数
+// const RPC_URL       = 'https://sepolia.base.org'
+// const EXPLORER_URL  = 'base-sepolia.blockscout.com'
+// const CHAIN_NAME    = 'Base Sepolia'
+// const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
+// const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
+
+// メインネット
+const CHAIN_ID      = 8453
+const RPC_URL       = 'https://base.drpc.org'
+const EXPLORER_URL  = 'base.blockscout.com'
+const CHAIN_NAME    = 'Base'
+const tokenAddress = '0xA0aeBd4Ae5F256B72B7D43f67eD934237Adb1AeE' //bonsai
+const stakeContractAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3' //1hour
 
 // ────────── STATE ──────────
 const address  = ref('')
-const provider = ref<BrowserProvider>()
+const provider = ref()
 const signer   = ref()
 const status   = ref('')
-
 const balance   = ref<number | null>(null)
+
 const amount    = ref('') // ユーザー入力値
+
 const staked    = ref<number | null>(null) //total staked = claimable+claimed 
 const claimable = ref<number | null>(null)   // ← 初期値 null で「取得前」を示す
 const claimed   = ref<number | null>(null)
 
+const toast = useToast()
+
+/* ---------- util: 10 進 → 16 進 ---------- */
+const toHex = (id: number) => '0x' + id.toString(16)
 
 // TODO: env=stgの場合に分岐させてもいい
 function goTop() {
   window.location.href = 'https://coin.bonsainft.club/'   // ルート URL へリダイレクト
 }
+
+const staticProvider = new ethers.providers.JsonRpcProvider(
+  RPC_URL         // ← ③
+)
+
 /* ────────── HELPERS ────────── */
 function formatNumber(n: number) {
   return n.toLocaleString()
 }
-// function setMax() { amount.value = String(balance.value) }
+
 function setMax() { 
-  amount.value = formatNumber(balance.value)
-  if (balance.value !== null)
+  if (balance.value !== null) {
+    // balance.valueがnullでない場合にのみ、amount.valueを更新
     amount.value = formatNumber(balance.value)
- }
+  }
+}
 
 /* ────────── COMPUTED ────────── */
 /* ────────── 接続済みはADDRESS 表示 ────────── */
@@ -134,6 +172,7 @@ const shortAddress = computed(() =>
   address.value ? `${address.value.slice(0, 6)}…${address.value.slice(-4)}` : ''
 )
 const isConnected = computed(() => !!address.value)
+
 const displayBalance = computed(() =>
   address.value
     ? balance.value !== null   // 取得済みならフォーマット
@@ -152,6 +191,24 @@ const displayStaked = computed(() =>
   staked.value === null ? '…' : formatNumber(staked.value)
 )
 
+// stakeContractHistoryUrlの作成
+const txFilterUrl = computed(() => {
+  if (!address.value) return ''
+
+  const qs = new URLSearchParams({
+    to_address_hashes_to_include: stakeContractAddress,
+    from_address_hashes_to_include: address.value
+  }).toString()
+
+  return `${EXPLORER_URL}/advanced-filter?${qs}`
+})
+
+const shortFilterUrl = computed(() => {
+  if (!txFilterUrl.value) return ''
+  const full = txFilterUrl.value
+  return full.length > 48 ? full.slice(0, 32) + '…' + full.slice(-10) : full
+})
+
 /* ────────── WALLET: MetaMask only ────────── */
 async function connectWallet () {
   const mm = (window as any).ethereum
@@ -160,39 +217,57 @@ async function connectWallet () {
     return
   }
 
-  try {
-    // ① 既に接続済みか確認
-    let accounts: string[] = await mm.request({ method: 'eth_accounts' })
-
-    // ② 未接続ならリクエストを表示
-    if (accounts.length === 0) {
-      accounts = await mm.request({ method: 'eth_requestAccounts' })
+  /* ---------- ① ネットワーク確認／スイッチ ---------- */
+  let current = await mm.request({ method: 'eth_chainId' })
+  /* 1. チェーンをチェックして Base Sepolia へ切替 */
+  const cur = await mm.request({ method: 'eth_chainId' })
+  if (cur !== toHex(CHAIN_ID)) {
+    try {
+      await mm.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: toHex(CHAIN_ID) }],
+      })
+    } catch (err: any) {
+      if (err.code === 4902) {                       // 未登録なら追加
+        await mm.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId:          toHex(CHAIN_ID),
+            chainName:        CHAIN_NAME,
+            rpcUrls:          [RPC_URL],
+            blockExplorerUrls:[EXPLORER_URL],
+            nativeCurrency:   { name: 'ETH', symbol: 'ETH', decimals: 18 },
+          }],
+        })
+      } else {
+        status.value = '❌ ネットワーク切替に失敗'
+        return
+      }
     }
-
-    const tmpProvider = new BrowserProvider(mm)   // ← ここでエラーが出ていた
-    const tmpSigner   = await tmpProvider.getSigner()
-
-    provider.value = tmpProvider
-    signer.value   = tmpSigner
-    address.value  = accounts[0]
-    status.value   = '✅ Connected'
-    balance.value  = null // ← 古い表示を即クリア
-
-    // connectWallet の成功ブロック末尾で呼ぶ
-    await fetchTokenBalance()
-    await fetchClaimData()  
-
-    // ウォレット側でアカウントを切り替えたら残高も更新
-    mm.on?.('accountsChanged', async (a: string[]) => {
-      address.value = a[0] ?? ''
-      await fetchTokenBalance()
-      await fetchClaimData() 
-    })
-    console.log('Connected - balance.value:', balance.value)
-  } catch (e) {
-    console.error(e)
-    status.value = '❌ 接続をキャンセル／失敗'
   }
+
+  /* ---------- ② アカウント取得 ---------- */
+  let accounts = await mm.request({ method: 'eth_accounts' })
+  address.value  = accounts[0]
+  // if (accounts.length === 0)
+  //   accounts = await mm.request({ method: 'eth_requestAccounts' })
+
+  /* ---------- ③ Provider / Signer ---------- */
+  provider.value = markRaw(new ethers.providers.Web3Provider(mm, CHAIN_ID))
+  signer.value   = markRaw(provider.value.getSigner())
+
+  status.value   = `✅ Connected to ${CHAIN_NAME}`
+
+  await fetchTokenBalance()
+  await fetchClaimData()
+
+  /* ---------- ④ ネットワーク・アカウント変更監視 ---------- */
+  mm.on?.('chainChanged', () => window.location.reload())
+  mm.on?.('accountsChanged', async (a: string[]) => {
+    address.value = a[0] ?? ''
+    await fetchTokenBalance()
+    await fetchClaimData()
+  })
 }
 
 /* ——————— 切断処理 ——————— */
@@ -211,69 +286,201 @@ onMounted(() => {
 
 /* ────────── Approve & getBalance ────────── */
 
-// JsonRpcProviderは　private-method 競合がそもそも起きない
-const staticProvider = new ethers.JsonRpcProvider('https://sepolia.base.org');
 
 async function fetchTokenBalance () {
   // if (!signer.value) return
   // const erc20 = new ethers.Contract(tokenAddress, ERC20, signer.value)
   console.log('fetchTokenBalance')
   if (!provider.value) return
-  const erc20  = new ethers.Contract(tokenAddress, ERC20, staticProvider)
-  console.log('bal_s')
+  const erc20  = markRaw(new ethers.Contract(tokenAddress, ERC20, staticProvider))
   const raw = await erc20.balanceOf(address.value)
-  console.log('bal') 
-  console.log('dec_s')
   const dec    = await erc20.decimals()
-  console.log('dec')
-  balance.value = parseFloat(ethers.formatUnits(raw, dec))
+  balance.value = parseFloat(ethers.utils.formatUnits(raw, dec))
 }
 
 async function fetchClaimData () {
   if (!provider.value || !address.value) return
 
   // const staking = new ethers.Contract(stakeContractAddress, StakingContract, provider.value)
-  const staking = new ethers.Contract(stakeContractAddress, StakingContract, staticProvider)
-  const stakes  = await staking.getStakes(address.value)
+  const staking = markRaw(new ethers.Contract(stakeContractAddress, StakingContract, staticProvider))
 
-  /* --- パターン B: getStakes(addr) で計算する場合 ------------------ */
+  const stakes  = await staking.getStakes(address.value)
+  const lockDuration  = Number(await staking.LOCK_DURATION())
+  const now           = Math.floor(Date.now() / 1e3)
+  console.log('lockDuration:', lockDuration, ', now:', now)
   
-  let totalClaimable = BigInt(0)
-  let totalClaimed   = BigInt(0)
+  let unlocked = ethers.BigNumber.from(0)  // claimable
+  let locked   = ethers.BigNumber.from(0)  // まだロック中
+  let already  = ethers.BigNumber.from(0)  // 既に請求済み
 
   for (const s of stakes) {
-    if (s.claimed) {
-      totalClaimed   += s.amount     // uint256 → bigint
+    const amt  = ethers.BigNumber.from(s[0])      // ← ⑥
+    const startTs    = Number(s[1])
+    const isClaimed  = Boolean(s[2])
+
+    if (isClaimed) {
+      already = already.add(amt)
+    } else if (now >= startTs + lockDuration) {
+      unlocked = unlocked.add(amt)         // ロック解除済み・未請求
     } else {
-      totalClaimable += s.amount
+      locked   = locked.add(amt)           // まだロック中
     }
   }
 
-  claimable.value = Number(ethers.formatEther(totalClaimable))
-  claimed.value   = Number(ethers.formatEther(totalClaimed))
-  staked.value    = claimable.value + claimed.value
-  /* -------------------------------------------------------------- */
+  claimable.value = Number(ethers.utils.formatEther(unlocked))
+  claimed.value   = Number(ethers.utils.formatEther(already))
+  staked.value    = Number(
+    ethers.utils.formatEther(unlocked.add(locked).add(already))
+  )
 }
-/* ────────── STAKE & CLAIM (ダミー) ────────── */
+/* ────────── STAKE  ────────── */
 async function stake () {
-  if (!signer.value || !amount.value) return
+  if (!signer.value || !amount.value || !address.value) return
 
-  // 「1,234,567」→ 「1234567」→ 数値 1234567
-  const amt = Number(amount.value.replace(/,/g, ''))
+  const cleaned = amount.value.replace(/,/g, '')
+  const weiAmt  = ethers.utils.parseUnits(cleaned, 18)   // BONSAICOIN は 18dec
 
-  // staked.value  += Number(amt)
-  balance.value -= Number(amount.value)
-  amount.value   = ''
-  status.value   = '✅ Stake success'
-  await fetchClaimData() 
+  const erc20   = markRaw(new ethers.Contract(tokenAddress, ERC20, signer.value))
+  const staking = markRaw(new ethers.Contract(stakeContractAddress, StakingContract, signer.value))
+
+  /* ----- 3. allowance 取得 (ゼロなら 0 でフォールバック) ----- */
+  let allowance: ethers.BigNumber
+  try {
+    allowance = await erc20.allowance(address.value, stakeContractAddress)
+  } catch (e) {
+    console.warn('allowance revert → 0 とみなす', e)
+    allowance = ethers.constants.Zero
+  }
+
+  /* ----- 4. approve & stake ----- */
+  if (allowance.lt(weiAmt)) {
+    const pendingApprove = toast.info('⏳ Approving… …', { timeout: 4000 })
+    status.value = '⏳ Approving…'
+    try {
+      const txA = await erc20.approve(stakeContractAddress, weiAmt)
+      await txA.wait()     
+      toast.update(pendingApprove, { // Stake Confirmed + リンク
+        content: h(
+            'a',
+            {
+              href: `https://${EXPLORER_URL}/tx/${txA.hash}`,
+              target: '_blank',
+              style: 'color:#fff;text-decoration:underline;'
+            },
+            'Stake Confirmed. Tx: ' + txA.hash.slice(0, 8) + '…'
+          ),
+          options: {
+            type: TYPE.SUCCESS,
+            timeout: 8000
+          }
+        })                               
+      allowance = weiAmt                                  // 直後の check 用
+    } catch (err) {
+      const msg = (err as any).reason ?? (err as any).message ?? 'Stake failed'
+      toast.update(pendingApprove, {
+        content: msg,
+        options: {
+          type: TYPE.ERROR,
+          timeout: 8000
+        }
+      })
+      status.value = '❌ Approve failed'
+      return                                           
+    }
+  }
+
+  /* ========= ② Stake 実行 ========= */
+  const pendingStake = toast.info('⏳ Staking…', { timeout: false })
+
+  try {
+    const txS = await staking.stake(weiAmt)
+    await txS.wait()
+
+    toast.update(pendingStake, { // Stake Confirmed + リンク
+      content: h(
+        'a',
+        {
+          href: `https://${EXPLORER_URL}/tx/${txS.hash}`,
+          target: '_blank',
+          style: 'color:#fff;text-decoration:underline;'
+        },
+        'Stake Confirmed. Tx: ' + txS.hash.slice(0, 8) + '…'
+      ),
+      options: {
+        type: TYPE.SUCCESS,
+        timeout: 8000
+      }
+    })
+
+    status.value = '✅ Stake success'
+    amount.value = ''
+    await fetchTokenBalance()
+    await fetchClaimData()
+
+  } catch (err) {
+    const msg = (err as any).reason ?? (err as any).message ?? '❌ Stake failed'
+    toast.update(pendingStake, {
+      content: msg,
+      options: {
+        type: TYPE.ERROR,
+        timeout: 8000
+      }
+    })
+    status.value = '❌ Stake failed'
+  }
 }
 
+// unlocked & un-claimed stake を 1Tx でまとめて請求
+/* ────────── Claim  ────────── */
 async function claimAll () {
   if (!signer.value || claimable.value === 0) return
-  // claimed.value += claimable.value
-  claimable.value = 0
-  status.value    = '✅ Claim success'
-  await fetchClaimData()
+  
+  const staking = markRaw(
+    new ethers.Contract(stakeContractAddress, StakingContract, signer.value)
+  )
+
+  try {
+    await staking.callStatic.claimAll({ gasLimit: 12_000_000 })
+  } catch (e) {
+    const msg = (e as any).shortMessage || (e as any).message || 'Revert'
+    toast.error(`❌ ${msg}`, { timeout: 6000 })
+    return
+  }
+  /* ───── 送信 & 待機 ─────────────────────────── */
+  const pending = toast.info('⏳ Claiming…', { timeout: false })
+  status.value  = '⏳ Claiming…'
+
+  try {
+    const tx = await staking.claimAll()
+    await tx.wait()
+
+    /* ✔ 成功トーストに差し替え */
+    toast.update(pending, {
+      content: h(
+        'a',
+        {
+          href: `https://${EXPLORER_URL}/tx/${tx.hash}`,
+          target: '_blank',
+          style: 'color:#fff;text-decoration:underline;'
+        },
+        'Claim Confirmed. Tx: ' + tx.hash.slice(0, 8) + '…'
+      ),
+      options: { type: TYPE.SUCCESS, timeout: 8000 }
+    })
+
+    /* 状態リフレッシュ */
+    status.value   = '✅ Claim success'
+    claimable.value = 0               // UI 上の即時反映
+    await fetchTokenBalance()
+    await fetchClaimData()
+  } catch (err) {
+    const msg = (err as any).shortMessage || (err as any).message || '❌ Claim failed'
+    toast.update(pending, {
+      content: msg,
+      options: { type: TYPE.ERROR, timeout: 8000 }
+    })
+    status.value = '❌ Claim failed'
+  }
 }
 </script>
 
@@ -475,9 +682,20 @@ async function claimAll () {
   cursor: pointer;
 }
 
-.claim-btn:disabled {
+.btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn:not(:disabled):hover{
+  transform:translateY(-2px) scale(1.03);
+  box-shadow:0 6px 16px rgba(0,0,0,.35);
+  background:#3a3a3a;                 /* ほんのり明るく */
+}
+
+.claim-btn:not(:disabled):active{
+  transform:translateY(0) scale(.98);
+  box-shadow:0 3px 8px rgba(0,0,0,.25);
 }
 
 .status-text {
@@ -485,6 +703,18 @@ async function claimAll () {
   color: #888888;
   margin-top: 16px;
   font-size: 12px;
+}
+
+.tx-link {
+  font-size: 14px;
+  margin: 5rem 0;
+}
+.tx-link a {
+  color: #63b3ff;
+  text-decoration: none;
+}
+.tx-link a:hover {
+  text-decoration: underline;
 }
 
 /* Footer */
