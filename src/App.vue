@@ -445,8 +445,12 @@ async function stake () {
 
     status.value = '✅ Stake success'
     amount.value = ''
-    await fetchTokenBalance()
-    await fetchClaimData()
+
+    // Make sure the tx is confirmed
+    setTimeout(async () => {
+      await fetchTokenBalance()
+      await fetchClaimData()
+    }, 3000)
 
   } catch (err) {
     const msg = (err as any).reason ?? (err as any).message ?? '❌ Stake failed'
