@@ -4,7 +4,7 @@
     <header class="app-header">
       <div class="nav-container">
         <button class="nav-btn" @click="goTop">TOP</button>
-        <img src="../src/assets/BONSAI_BANK_logo.png" alt="BONSAI BANK logo" class="nav-logo" />
+        <button class="nav-btn active">BONSAI BANK</button>
         <div class="spacer"></div>
         <!-- 接続前 -->
         <button v-if="!isConnected" class="connect-btn" @click="connectWallet">
@@ -21,8 +21,7 @@
     <main class="main-container">
       <!-- LOGO -->
       <div class="logo-container">
-        <!-- <img src="../src/assets/logo.png" alt="BONSAICOIN" class="logo" /> -->
-        <img src="https://static.wixstatic.com/media/3e4de0_efd319fa51504fcbafb6b96c42b82040~mv2.png/v1/crop/x_252,y_141,w_459,h_259/fill/w_388,h_219,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/BONSAICOIN_ogp.png" alt="BONSAICOIN" class="logo" />
+        <img src="../src/assets/BONSAI_BANK_logo.png" alt="BONSAICOIN" class="logo" />
       </div>
 
       <!-- BALANCE LINE -->
@@ -485,6 +484,7 @@ async function claimAll () {
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200..700&display=swap');
 /* Global styles for dark theme */
 .bonsai-app {
   background-color: #004d3b;
@@ -492,7 +492,7 @@ async function claimAll () {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: "Oswald", sans-serif;
 }
 
 /***** Header navigation *****/
@@ -511,7 +511,7 @@ async function claimAll () {
 }
 
 .nav-btn{
-  font-family:"Satoshi",sans-serif;   /* GoogleFonts 可 */
+  font-family:"Oswald", sans-serif;   /* GoogleFonts 可 */
   font-size:20px;                     /* ← TOP と同じ */
   letter-spacing:0.05em;
   font-weight:400;
@@ -532,21 +532,17 @@ async function claimAll () {
   margin-right:0;
 }
 
-.nav-logo {
-  width: 10em;
-}
-
 .spacer {
   flex-grow: 1;
 }
 
 .connect-btn {
   background: transparent;
-  border: 1px solid #efe2c6;
+  border: none;
   border-radius: 4px;
   color: #efe2c6;
   padding: 6px 12px;
-  font-size: 14px;
+  font-size: 18px;
   cursor: pointer;
 }
 
@@ -573,12 +569,12 @@ async function claimAll () {
 }
 
 /* Logo */
-.logo-container {
+/*.logo-container {
   margin-bottom: 40px;
-}
+}*/
 
 .logo {
-  height: 120px;
+  height: 180px;
   width: auto;
 }
 
@@ -715,7 +711,7 @@ async function claimAll () {
   margin: 5rem 0;
 }
 .tx-link a {
-  color: #63b3ff;
+  color: #efe2c6;
   text-decoration: none;
 }
 .tx-link a:hover {
