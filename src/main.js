@@ -1,5 +1,8 @@
 import './assets/main.css'
 import { createApp } from 'vue'
+import { VueQueryPlugin } from '@tanstack/vue-query'
+import { WagmiPlugin } from '@wagmi/vue';
+import { config } from './plugins/wallet';
 import App from './App.vue'
 import { createVuetify } from 'vuetify'
 import 'vuetify/styles'
@@ -25,6 +28,8 @@ const vuetify = createVuetify({
 })
 
 const app = createApp(App)
+app.use(WagmiPlugin, { config })
+app.use(VueQueryPlugin)
 app.use(vuetify)
 app.use(Toast, { position: 'bottom-left', timeout: 5000 })
 app.mount('#app')
