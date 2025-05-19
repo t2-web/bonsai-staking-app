@@ -3,7 +3,7 @@
     <!-- ────────── HEADER ────────── -->
     <header class="app-header">
       <div class="nav-container">
-        <button class="nav-btn" @click="goTop">TOP</button>
+        <button class="nav-btn" @click="goTop">Top</button>
         <button class="nav-btn active">BONSAI BANK</button>
         <div class="spacer"></div>
         <!-- 接続前 -->
@@ -88,6 +88,20 @@
         <a :href="`https://${EXPLORER_URL}/address/${stakeContractAddress}`" target="_blank" rel="noopener">
           <span class="hash">{{ stakeContractAddress }}</span>
         </a>
+      </div>
+
+      <div class="how-it-works-container">
+        <span>How it Works</span>
+        <div class="how-it-works-links-wrapper">
+          <a :href="'https://medium.com/@bonsaicoin/bonsai-bank-800e8e0cff27'" target="_blank" rel="noopener" class="how-it-works-link">
+            <img src="../src/assets/medium_logo.png" alt="Medium" class="how-it-works-link-img" />
+            <span class="how-it-works-link-text">EN</span>
+          </a>
+          <a :href="'https://note.com/bonsaicoin/n/n25dda0ee2f1b'" target="_blank" rel="noopener" class="how-it-works-link">
+            <img src="../src/assets/note_logo.png" alt="Note" class="how-it-works-link-img" />
+            <span class="how-it-works-link-text">JP</span>
+          </a>
+        </div>
       </div>
     </main>
 
@@ -485,6 +499,16 @@ async function claimAll () {
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200..700&display=swap');
+
+*:focus {
+  outline: none;
+}
+
+a {
+  color: #efe2c6;
+  text-decoration: none;
+}
+
 /* Global styles for dark theme */
 .bonsai-app {
   background-color: #004d3b;
@@ -613,8 +637,8 @@ async function claimAll () {
 
 .stake-input {
   width: 100%;
-  background-color: #2e2e2e;
-  border: 1px solid #444444;
+  background-color: transparent;
+  border: 1px solid transparent;
   border-radius: 4px;
   color: #ffffff;
   font-size: 16px;
@@ -629,19 +653,24 @@ async function claimAll () {
   transform: translateY(-50%);
   background: transparent;
   border: none;
-  color: #888888;
+  color: #efe2c6;
   font-size: 12px;
   cursor: pointer;
 }
 
 .stake-btn {
-  background-color: transparent;
-  border: none;
+  background-color: #efe2c6;
+  border: 1px solid #efe2c6;
   border-radius: 4px;
-  color: #efe2c6;
+  color: #004d3b;
   font-weight: 600;
   min-width: 80px;
   cursor: pointer;
+}
+.stake-btn:hover {
+  background-color: #004d3b !important;
+  border: 1px solid #efe2c6;
+  color: #efe2c6;
 }
 
 .stake-btn:disabled {
@@ -673,14 +702,19 @@ async function claimAll () {
 
 /* Claim button */
 .claim-btn {
-  background-color: transparent;
-  border: none;
+  background-color: #efe2c6;
+  border: 1px solid #efe2c6;
   border-radius: 4px;
-  color: #efe2c6;
+  color: #004d3b;
   font-weight: 600;
   padding: 10px 24px;
   margin-top: 32px;
   cursor: pointer;
+}
+.claim-btn:hover {
+  background-color: #004d3b !important;
+  border: 1px solid #efe2c6;
+  color: #efe2c6;
 }
 
 .btn:disabled {
@@ -740,6 +774,25 @@ async function claimAll () {
 .copyright {
   color: #888888;
   font-size: 12px;
+}
+
+.how-it-works-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+.how-it-works-container .how-it-works-links-wrapper {
+  display: inline-flex;
+  justify-content: center;
+  column-gap: 2em;
+}
+.how-it-works-container .how-it-works-links-wrapper .how-it-works-link {
+  display: flex;
+  flex-direction: column;
+  color: #ffffff;
+}
+.how-it-works-container .how-it-works-links-wrapper .how-it-works-link .how-it-works-link-img {
+  width: 120px;
 }
 
 /* Responsive tweaks */
