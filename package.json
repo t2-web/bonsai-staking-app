@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@walletconnect/ethereum-provider": "^2.20.2",
-    "@web3modal/standalone": "^2.4.3",
     "ethers": "^5.7.2",
     "vue": "^3.5.13",
     "vue-toastification": "^2.0.0-rc.5",
