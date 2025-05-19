@@ -529,7 +529,7 @@ a {
   display: flex;
   align-items: center;
   height: 100%;
-  max-width:980px;     /* TOP ページと同じ固定幅 */
+  max-width:1024px;     /* TOP ページと同じ固定幅 */
   margin:0 auto;       /* 余白を左右に均等配置 */
   width:100%;          /* 画面が狭い時は 100% で縮む */
 }
@@ -585,11 +585,12 @@ a {
 /***** Main Content *****/
 .main-container {
   /* max-width: 680px; */
-  max-width: 980px;
+  max-width: 1024px;
   margin: 0 auto;
   padding: 48px 16px 64px;
   text-align: center;
   flex: 1;
+  width: 100%;
 }
 
 /* Logo */
@@ -605,11 +606,13 @@ a {
 /* Balance display */
 .balance-line {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 32px;
+  max-width: 680px;
+  margin: 0 auto 32px auto;
+  width: 100%;
 }
 
 .label {
@@ -626,8 +629,9 @@ a {
 /* Stake input */
 .stake-container {
   display: flex;
-  margin-bottom: 32px;
+  margin: 0 auto 32px auto;
   gap: 8px;
+  max-width: 680px;
 }
 
 .input-wrapper {
@@ -638,12 +642,42 @@ a {
 .stake-input {
   width: 100%;
   background-color: transparent;
-  border: 1px solid transparent;
+  border: 1px solid #efe2c6;
   border-radius: 4px;
   color: #ffffff;
   font-size: 16px;
   padding: 10px 50px 10px 16px;
   text-align: center;
+}
+
+/* do not group these rules */
+.stake-input::-webkit-input-placeholder {
+  color: #ffffff;
+}
+.stake-input:-moz-placeholder {
+  /* FF 4-18 */
+  color: red;
+  opacity: 0.5;
+}
+.stake-input::-moz-placeholder {
+  /* FF 19+ */
+  color: #ffffff;
+  opacity: 0.5;
+}
+.stake-input:-ms-input-placeholder {
+  /* IE 10+ */
+  color: #ffffff;
+  opacity: 0.5;
+}
+.stake-input::-ms-input-placeholder {
+  /* Microsoft Edge */
+  color: #ffffff;
+  opacity: 0.5;
+}
+.stake-input::placeholder {
+  /* modern browser */
+  color: #ffffff;
+  opacity: 0.5;
 }
 
 .max-btn {
@@ -680,7 +714,7 @@ a {
 
 /* Stats table */
 .stats-container {
-  max-width: 400px;
+  max-width: 680px;
   margin: 0 auto;
 }
 
@@ -796,6 +830,17 @@ a {
 }
 
 /* Responsive tweaks */
+@media (max-width: 1024px) {
+  .main-container {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 48px 16px 64px;
+    text-align: center;
+    flex: 1;
+    width: 100%;
+  }
+}
+
 @media (max-width: 600px) {
   .stake-container {
     flex-direction: column;
@@ -807,6 +852,12 @@ a {
 
   .main-container {
     padding: 32px 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .nav-btn {
+    margin-right: 20px;
   }
 }
 </style>
