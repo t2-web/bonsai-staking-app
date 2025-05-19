@@ -167,6 +167,7 @@ const toast = useToast()
 const web3modal = ref<Web3Modal>()
 
 function initConnectModal() {
+  // Configure the chains
   const { publicClient } = configureChains(chains, [w3mProvider({ projectId })])
   const wagmiConfig = createConfig({
     autoConnect: false,
@@ -185,6 +186,10 @@ function initConnectModal() {
     }
   }, ethereumClient)
 
+  // Disconnect from any previous connection
+  disconnect()
+
+  // Watch for account changes
   watchAccount(async () => {
     const account = getAccount()
     if (account && chain) {
