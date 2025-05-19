@@ -38,6 +38,7 @@
             type="text"
             placeholder="0 - 999999..."
             class="stake-input"
+            @input="onInput"
           />
           <button class="max-btn" @click="setMax">max</button>
         </div>
@@ -147,6 +148,7 @@ const signer   = ref()
 const status   = ref('')
 const balance   = ref<number | null>(null)
 
+const rawAmountValue = ref('')
 const amount    = ref('') // ユーザー入力値
 
 const staked    = ref<number | null>(null) //total staked = claimable+claimed
@@ -168,6 +170,19 @@ const staticProvider = new ethers.providers.JsonRpcProvider(
 )
 
 /* ────────── HELPERS ────────── */
+const formatInputNumber = (value: string): string => {
+  const number = parseFloat(value.replace(/,/g, ''))
+  if (isNaN(number)) return ''
+  return number.toLocaleString()
+}
+
+function onInput(e: Event) {
+  const target = e.target as HTMLInputElement
+  const numericOnly = target.value.replace(/[^0-9]/g, '')
+  rawAmountValue.value = numericOnly
+  amount.value = formatInputNumber(numericOnly)
+}
+
 function formatNumber(n: number) {
   return n.toLocaleString()
 }
