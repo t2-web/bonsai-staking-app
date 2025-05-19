@@ -211,56 +211,140 @@ const shortFilterUrl = computed(() => {
   return full.length > 48 ? full.slice(0, 32) + '…' + full.slice(-10) : full
 })
 
+/* ────────── isMobile DETECTION ────────── */
+const isMobile = computed(() => {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)
+})
+
 /* ────────── WALLET CONNECTION ────────── */
-async function connectWallet () {
+async function connectWallet() {
   try {
-    // Create WalletConnect v2 Provider
-    const wcProvider = await EthereumProvider.init({
-      projectId: WALLET_CONNECT_PROJECT_ID,
-      chains: [CHAIN_ID],
-      showQrModal: true,
-      metadata: {
-        name: 'Bonsai Staking App',
-        description: 'Stake your BONSAICOIN tokens',
-        url: window.location.href,
-        icons: ['https://static.wixstatic.com/media/3e4de0_efd319fa51504fcbafb6b96c42b82040~mv2.png']
+    // On mobile, only use WalletConnect with deep links (no QR)
+    if (isMobile.value) {
+      await connectWithWalletConnect(false) // false = no QR on mobile
+    } else {
+      // On desktop, first try MetaMask, if not available, show WalletConnect QR
+      const isMetaMaskAvailable = typeof window !== 'undefined' && (window as any).ethereum
+      
+      if (isMetaMaskAvailable) {
+        await connectWithMetaMask()
+      } else {
+        await connectWithWalletConnect(true) // true = show QR on desktop
       }
-    })
-
-    // Connect and get accounts
-    await wcProvider.connect()
-    
-    provider.value = markRaw(new ethers.providers.Web3Provider(wcProvider))
-    signer.value = markRaw(provider.value.getSigner())
-    
-    const accounts = await wcProvider.request({ method: 'eth_accounts' })
-    address.value = accounts[0]
-    
-    status.value = `✅ Connected to ${CHAIN_NAME}`
-    await fetchTokenBalance()
-    await fetchClaimData()
-
-    // Setup event listeners
-    wcProvider.on('accountsChanged', async (accounts: unknown) => {
-      if (Array.isArray(accounts)) {
-        address.value = accounts[0] ?? ''
-        await fetchTokenBalance()
-        await fetchClaimData()
-      }
-    })
-
-    wcProvider.on('chainChanged', (chainId: string) => {
-      window.location.reload()
-    })
-
-    wcProvider.on('disconnect', () => {
-      disconnectWallet()
-    })
-
+    }
   } catch (error) {
     console.error('Connection error:', error)
     status.value = '❌ Connection failed'
   }
+}
+
+/* ────────── METAMASK CONNECTION ────────── */
+async function connectWithMetaMask() {
+  const mm = (window as any).ethereum
+  if (!mm) {
+    status.value = '❌ MetaMask が見つかりません'
+    return
+  }
+
+  /* ---------- ① ネットワーク確認／スイッチ ---------- */
+  let current = await mm.request({ method: 'eth_chainId' })
+  /* 1. チェーンをチェックして Base Sepolia へ切替 */
+  const cur = await mm.request({ method: 'eth_chainId' })
+  if (cur !== toHex(CHAIN_ID)) {
+    try {
+      await mm.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: toHex(CHAIN_ID) }],
+      })
+    } catch (err: any) {
+      if (err.code === 4902) {                       // 未登録なら追加
+        await mm.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId:          toHex(CHAIN_ID),
+            chainName:        CHAIN_NAME,
+            rpcUrls:          [RPC_URL],
+            blockExplorerUrls:[EXPLORER_URL],
+            nativeCurrency:   { name: 'ETH', symbol: 'ETH', decimals: 18 },
+          }],
+        })
+      } else {
+        status.value = '❌ ネットワーク切替に失敗'
+        return
+      }
+    }
+  }
+
+  /* ---------- ② アカウント取得 ---------- */
+  let accounts = await mm.request({ method: 'eth_accounts' })
+  address.value  = accounts[0]
+  // if (accounts.length === 0)
+  //   accounts = await mm.request({ method: 'eth_requestAccounts' })
+
+  /* ---------- ③ Provider / Signer ---------- */
+  provider.value = markRaw(new ethers.providers.Web3Provider(mm, CHAIN_ID))
+  signer.value   = markRaw(provider.value.getSigner())
+
+  status.value   = `✅ Connected to ${CHAIN_NAME}`
+
+  await fetchTokenBalance()
+  await fetchClaimData()
+
+  /* ---------- ④ ネットワーク・アカウント変更監視 ---------- */
+  mm.on?.('chainChanged', () => window.location.reload())
+  mm.on?.('accountsChanged', async (a: string[]) => {
+    address.value = a[0] ?? ''
+    await fetchTokenBalance()
+    await fetchClaimData()
+  })
+}
+
+/* ────────── WALLETCONNECT CONNECTION ────────── */
+async function connectWithWalletConnect(showQR: boolean) {
+  // Create WalletConnect v2 Provider
+  const wcProvider = await EthereumProvider.init({
+    projectId: WALLET_CONNECT_PROJECT_ID,
+    chains: [CHAIN_ID],
+    showQrModal: showQR, // Only show QR on desktop
+    metadata: {
+      name: 'Bonsai Staking App',
+      description: 'Stake your BONSAICOIN tokens',
+      url: window.location.href,
+      icons: ['https://static.wixstatic.com/media/3e4de0_efd319fa51504fcbafb6b96c42b82040~mv2.png']
+    }
+  })
+
+  // Connect and get accounts
+  await wcProvider.connect()
+  
+  provider.value = markRaw(new ethers.providers.Web3Provider(wcProvider))
+  signer.value = markRaw(provider.value.getSigner())
+  
+  const accounts = await wcProvider.request({ method: 'eth_accounts' }) as string[]
+  address.value = accounts[0]
+  
+  status.value = `✅ Connected to ${CHAIN_NAME}`
+  await fetchTokenBalance()
+  await fetchClaimData()
+
+  // Setup event listeners
+  wcProvider.on('accountsChanged', async (accounts: unknown) => {
+    if (Array.isArray(accounts)) {
+      address.value = accounts[0] ?? ''
+      await fetchTokenBalance()
+      await fetchClaimData()
+    }
+  })
+
+  wcProvider.on('chainChanged', (chainId: string) => {
+    window.location.reload()
+  })
+
+  wcProvider.on('disconnect', () => {
+    disconnectWallet()
+  })
 }
 
 /* ——————— 切断処理 ——————— */
