@@ -4,7 +4,7 @@
     <header class="app-header">
       <div class="nav-container">
         <button class="nav-btn" @click="goTop">TOP</button>
-        <button class="nav-btn active">Staking</button>
+        <img src="../src/assets/BONSAI_BANK_logo.png" alt="BONSAI BANK logo" class="nav-logo" />
         <div class="spacer"></div>
         <!-- 接続前 -->
         <button v-if="!isConnected" class="connect-btn" @click="connectWallet">
@@ -34,7 +34,7 @@
       <!-- STAKE INPUT -->
       <div class="stake-container">
         <div class="input-wrapper">
-          <input 
+          <input
             v-model="amount"
             type="text"
             placeholder="0 - 999999..."
@@ -42,7 +42,7 @@
           />
           <button class="max-btn" @click="setMax">max</button>
         </div>
-        <button 
+        <button
           class="stake-btn btn"
           :disabled="!amount || !address"
           @click="stake"
@@ -68,7 +68,7 @@
       </div>
 
       <!-- CLAIM BUTTON -->
-      <button 
+      <button
         class="claim-btn btn"
         :disabled="claimable === 0 || !address"
         @click="claimAll"
@@ -78,14 +78,14 @@
 
       <!-- TX STATUS -->
       <div class="tx-link" v-if="txFilterUrl">
-        Stake Tx Link : 
+        Stake Tx Link :
         <a :href="`https://${txFilterUrl}`" target="_blank" rel="noopener">
           <span class="hash">{{ shortFilterUrl }}</span>
         </a>
       </div>
 
       <div class="tx-link" >
-        Stake Address : 
+        Stake Address :
         <a :href="`https://${EXPLORER_URL}/address/${stakeContractAddress}`" target="_blank" rel="noopener">
           <span class="hash">{{ stakeContractAddress }}</span>
         </a>
@@ -94,7 +94,7 @@
 
     <!-- ────────── FOOTER ────────── -->
     <footer class="app-footer">
-      <div class="copyright">© 2024 by SBONSAICOIN</div>
+      <div class="copyright">© 2025 by SBONSAICOIN</div>
     </footer>
   </div>
 </template>
@@ -136,7 +136,7 @@ const balance   = ref<number | null>(null)
 
 const amount    = ref('') // ユーザー入力値
 
-const staked    = ref<number | null>(null) //total staked = claimable+claimed 
+const staked    = ref<number | null>(null) //total staked = claimable+claimed
 const claimable = ref<number | null>(null)   // ← 初期値 null で「取得前」を示す
 const claimed   = ref<number | null>(null)
 
@@ -159,7 +159,7 @@ function formatNumber(n: number) {
   return n.toLocaleString()
 }
 
-function setMax() { 
+function setMax() {
   if (balance.value !== null) {
     // balance.valueがnullでない場合にのみ、amount.valueを更新
     amount.value = formatNumber(balance.value)
@@ -308,7 +308,7 @@ async function fetchClaimData () {
   const lockDuration  = Number(await staking.LOCK_DURATION())
   const now           = Math.floor(Date.now() / 1e3)
   console.log('lockDuration:', lockDuration, ', now:', now)
-  
+
   let unlocked = ethers.BigNumber.from(0)  // claimable
   let locked   = ethers.BigNumber.from(0)  // まだロック中
   let already  = ethers.BigNumber.from(0)  // 既に請求済み
@@ -358,7 +358,7 @@ async function stake () {
     status.value = '⏳ Approving…'
     try {
       const txA = await erc20.approve(stakeContractAddress, weiAmt)
-      await txA.wait()     
+      await txA.wait()
       toast.update(pendingApprove, { // Stake Confirmed + リンク
         content: h(
             'a',
@@ -373,7 +373,7 @@ async function stake () {
             type: TYPE.SUCCESS,
             timeout: 8000
           }
-        })                               
+        })
       allowance = weiAmt                                  // 直後の check 用
     } catch (err) {
       const msg = (err as any).reason ?? (err as any).message ?? 'Stake failed'
@@ -385,7 +385,7 @@ async function stake () {
         }
       })
       status.value = '❌ Approve failed'
-      return                                           
+      return
     }
   }
 
@@ -434,7 +434,7 @@ async function stake () {
 /* ────────── Claim  ────────── */
 async function claimAll () {
   if (!signer.value || claimable.value === 0) return
-  
+
   const staking = markRaw(
     new ethers.Contract(stakeContractAddress, StakingContract, signer.value)
   )
@@ -487,7 +487,7 @@ async function claimAll () {
 <style scoped>
 /* Global styles for dark theme */
 .bonsai-app {
-  background-color: #1a1a1a;
+  background-color: #004d3b;
   color: #ffffff;
   min-height: 100vh;
   display: flex;
@@ -515,7 +515,7 @@ async function claimAll () {
   font-size:20px;                     /* ← TOP と同じ */
   letter-spacing:0.05em;
   font-weight:400;
-  color:#c4c4c4;
+  color:#efe2c6;
   background:transparent;
   border:none;
   margin-right:48px;                  /* ← 項目間 48px */
@@ -524,12 +524,16 @@ async function claimAll () {
 }
 
 .nav-btn.active {
-  color: #ffffff;
+  color: #efe2c6;
   font-weight: 700;
 }
 
 .nav-btn:last-of-type{
   margin-right:0;
+}
+
+.nav-logo {
+  width: 10em;
 }
 
 .spacer {
@@ -538,9 +542,9 @@ async function claimAll () {
 
 .connect-btn {
   background: transparent;
-  border: 1px solid #ffffff;
+  border: 1px solid #efe2c6;
   border-radius: 4px;
-  color: #ffffff;
+  color: #efe2c6;
   padding: 6px 12px;
   font-size: 14px;
   cursor: pointer;
@@ -553,9 +557,10 @@ async function claimAll () {
   font-size: 14px;
 } */
 .wallet-chip {
-  border: 1px solid #ffffff;
+  border: 1px solid #efe2c6;
   padding: 4px 12px;
   font-size: 14px;
+  color: #efe2c6;
 }
 /***** Main Content *****/
 .main-container {
@@ -634,10 +639,10 @@ async function claimAll () {
 }
 
 .stake-btn {
-  background-color: #2e2e2e;
+  background-color: transparent;
   border: none;
   border-radius: 4px;
-  color: #ffffff;
+  color: #efe2c6;
   font-weight: 600;
   min-width: 80px;
   cursor: pointer;
@@ -672,10 +677,10 @@ async function claimAll () {
 
 /* Claim button */
 .claim-btn {
-  background-color: #2e2e2e;
+  background-color: transparent;
   border: none;
   border-radius: 4px;
-  color: #ffffff;
+  color: #efe2c6;
   font-weight: 600;
   padding: 10px 24px;
   margin-top: 32px;
@@ -746,11 +751,11 @@ async function claimAll () {
   .stake-container {
     flex-direction: column;
   }
-  
+
   .value {
     font-size: 20px;
   }
-  
+
   .main-container {
     padding: 32px 16px;
   }
