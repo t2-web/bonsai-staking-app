@@ -9,10 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tanstack/vue-query": "^5.76.0",
     "@wagmi/core": "^1.3.3",
-    "@wagmi/vue": "0.0.0-vue-20240515004619",
-    "@walletconnect/ethereum-provider": "^2.20.2",
+    "@walletconnect/ethereum-provider": "^2.8.6",
     "@walletconnect/modal": "^2.5.9",
     "@web3modal/ethereum": "^2.6.2",
     "@web3modal/html": "^2.6.2",

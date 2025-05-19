@@ -10,8 +10,8 @@
         
         <template v-if="!isConnected">
           <button
-            class="connect-btn"  
-            @click="connectWallet(connectors.find(c => c.type === 'walletConnect')!)"
+            class="connect-btn"
+            @click="connectWallet()"
           >
             Connect Wallet
           </button>
@@ -109,33 +109,35 @@
 import { ref, computed, onMounted, markRaw, h, watch } from 'vue'
 import { ethers } from 'ethers'
 import { useToast, TYPE } from 'vue-toastification'
-import { useConnect, useAccount, useDisconnect, type Connector, useClient } from '@wagmi/vue';
 
 import ERC20 from '@/abi/ERC20.json'
 import StakingContract from '@/abi/ERC20Staking.json'
+import { configureChains, createConfig, disconnect, getAccount, getWalletClient, watchAccount, type Chain } from '@wagmi/core';
+import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum';
+import { base, baseSepolia } from '@wagmi/core/chains'
+import { Web3Modal } from '@web3modal/html';
 
 // Stakelist
 // https://base-sepolia.blockscout.com/advanced-filter?transaction_types=ERC-20%2CERC-404%2CERC-721%2CERC-1155&to_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902&from_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902%2C0x9035ae14AF7C27cEffcbc1Ce626e0663f877813f
 
 /* ---------- ネットワーク定義 ---------- */
 // テストネット
-// const CHAIN_ID      = 84532                              // 10進数
-// const RPC_URL       = 'https://sepolia.base.org'
-// const EXPLORER_URL  = 'base-sepolia.blockscout.com'
-// const CHAIN_NAME    = 'Base Sepolia'
+// const chain = baseSepolia                              // 10進数
 // const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
 // const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
 
 // メインネット
-const CHAIN_ID      = 8453
-const RPC_URL       = 'https://base.drpc.org'
-const EXPLORER_URL  = 'base.blockscout.com'
-const CHAIN_NAME    = 'Base'
+const chain = base
 const tokenAddress = '0xA0aeBd4Ae5F256B72B7D43f67eD934237Adb1AeE' //bonsai
 const stakeContractAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3' //1hour
 
+const chains: Chain[] = [chain]
+const projectId = '11de27f464d53a18220d68841ac45f99'
+const EXPLORER_URL = chain.blockExplorers?.default?.url ?? ''
+
 // ────────── STATE ──────────
 const provider = ref()
+const address = ref()
 const signer   = ref()
 const status   = ref('')
 const balance   = ref<number | null>(null)
@@ -147,11 +149,76 @@ const claimable = ref<number | null>(null)   // ← 初期値 null で「取得�
 const claimed   = ref<number | null>(null)
 
 const toast = useToast()
-const { connectors, connect } = useConnect();
-const { address, connector } = useAccount();
-const { disconnect } = useDisconnect();
-const client = useClient({ chainId: CHAIN_ID })
-const activeConnector = ref<Connector | null>(null)
+const web3modal = ref<Web3Modal>()
+
+function initConnectModal() {
+  const { publicClient } = configureChains(chains, [w3mProvider({ projectId })])
+  const wagmiConfig = createConfig({
+    autoConnect: false,
+    connectors: w3mConnectors({ projectId, chains: chains }),
+    publicClient
+  })
+  const ethereumClient = new EthereumClient(wagmiConfig, chains)
+
+  web3modal.value = new Web3Modal({ 
+    projectId,
+    themeVariables: {
+      '--w3m-accent-color': '#004d3b',
+      '--w3m-button-border-radius': '999px',
+      '--w3m-text-medium-regular-size': '14px',
+      '--w3m-background-color': '#004d3b',
+    }
+  }, ethereumClient)
+
+  watchAccount(async () => {
+    const account = getAccount()
+    if (account && chain) {
+      const walletClient = await getWalletClient({ chainId: chain.id })
+      if (walletClient) {
+        const { chain, transport } = walletClient
+        const network = {
+          chainId: chain.id,
+          name: chain.name,
+        }
+
+        address.value = account.address
+        provider.value = markRaw(new ethers.providers.Web3Provider(transport, network))
+        signer.value = markRaw(provider.value.getSigner(account.address))
+
+        fetchTokenBalance()
+        fetchClaimData()
+      }
+    } else {
+      address.value = null
+      provider.value = null
+      signer.value = null
+      balance.value = null
+      staked.value = null
+      claimable.value = null
+      claimed.value = null
+    }
+  })
+}
+
+
+async function connectWallet() {
+  if (!web3modal.value) {
+    const msg = 'Web3Modal is not initialized'
+    toast.error(`❌ ${msg}`, { timeout: 6000 })
+    return
+  }
+  await web3modal.value.openModal()
+}
+
+/* ——————— 切断処理 ——————— */
+function disconnectWallet () {
+  disconnect()
+}
+
+/* ────────── 自動復旧 (任意) ────────── */
+onMounted(() => {
+  initConnectModal()
+})
 
 /* ---------- util: 10 進 → 16 進 ---------- */
 const toHex = (id: number) => '0x' + id.toString(16)
@@ -162,7 +229,7 @@ function goTop() {
 }
 
 const staticProvider = new ethers.providers.JsonRpcProvider(
-  RPC_URL         // ← ③
+  chain.rpcUrls.default.http[0]         // ← ③
 )
 
 /* ────────── HELPERS ────────── */
@@ -218,47 +285,6 @@ const shortFilterUrl = computed(() => {
   if (!txFilterUrl.value) return ''
   const full = txFilterUrl.value
   return full.length > 48 ? full.slice(0, 32) + '…' + full.slice(-10) : full
-})
-
-watch(address, () => refreshInfo())
-
-async function refreshInfo() {
-  if (address.value && client.value) {
-    const { chain, transport } = client.value
-    const network = {
-      chainId: CHAIN_ID,
-      name: CHAIN_NAME,
-      ensAddress: chain?.contracts?.ensRegistry?.address,
-    }
-    provider.value = markRaw(new ethers.providers.Web3Provider(transport, network))
-    signer.value = markRaw(provider.value.getSigner(address.value))
-    status.value   = `✅ Connected to ${CHAIN_NAME}`
-
-    fetchTokenBalance()
-    fetchClaimData()
-  } else {
-    balance.value = null
-    staked.value = null
-    claimable.value = null
-    claimed.value = null
-  } 
-}
-
-
-async function connectWallet(connector: Connector) {
-  activeConnector.value = connector
-
-  connect({ connector, chainId: CHAIN_ID })
-}
-
-/* ——————— 切断処理 ——————— */
-function disconnectWallet () {
-  disconnect()
-}
-
-/* ────────── 自動復旧 (任意) ────────── */
-onMounted(() => {
-  disconnectWallet()
 })
 
 /* ────────── Approve & getBalance ────────── */
