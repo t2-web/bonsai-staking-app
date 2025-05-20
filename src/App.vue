@@ -5,21 +5,6 @@
       <div class="nav-container">
         <button class="nav-btn" @click="goTop">Top</button>
         <button class="nav-btn active">BONSAI BANK</button>
-        <div class="spacer"></div>
-        <!-- 接続前 -->
-        
-        <template v-if="!isConnected">
-          <button
-            class="connect-btn"
-            @click="connectWallet()"
-          >
-            Connect Wallet
-          </button>
-        </template>
-        <!-- 接続後：クリックで切断 -->
-        <div v-else class="wallet-chip" @click="disconnectWallet">
-          {{ shortAddress }}
-        </div>
       </div>
     </header>
 
@@ -28,6 +13,22 @@
       <!-- LOGO -->
       <div class="logo-container">
         <img src="../src/assets/BONSAI_BANK_logo.png" alt="BONSAICOIN" class="logo" />
+      </div>
+
+      <div class="connect-btn-container">
+        <!-- 接続前 -->
+        <template v-if="!isConnected">
+          <button
+            class="connect-btn btn"
+            @click="connectWallet()"
+          >
+            Connect Wallet
+          </button>
+        </template>
+        <!-- 接続後：クリックで切断 -->
+        <div v-else class="wallet-chip btn" @click="disconnectWallet">
+          {{ shortAddress }}
+        </div>
       </div>
 
       <!-- BALANCE LINE -->
@@ -162,7 +163,7 @@ function initConnectModal() {
   })
   const ethereumClient = new EthereumClient(wagmiConfig, chains)
 
-  web3modal.value = new Web3Modal({ 
+  web3modal.value = new Web3Modal({
     projectId,
     themeVariables: {
       '--w3m-accent-color': '#004d3b',
@@ -219,6 +220,10 @@ async function connectWallet() {
 /* ——————— 切断処理 ——————— */
 function disconnectWallet () {
   disconnect()
+  address.value = ""
+  staked.value = null
+  claimable.value = null
+  claimed.value = null
 }
 
 /* ────────── 自動復旧 (任意) ────────── */
@@ -352,7 +357,7 @@ async function fetchClaimData () {
   claimable.value = Number(ethers.utils.formatEther(unlocked))
   claimed.value   = Number(ethers.utils.formatEther(already))
   staked.value    = Number(
-    ethers.utils.formatEther(unlocked.add(locked).add(already))
+    ethers.utils.formatEther(unlocked.add(already))
   )
 }
 /* ────────── STAKE  ────────── */
@@ -569,26 +574,6 @@ a {
   margin-right:0;
 }
 
-.spacer {
-  flex-grow: 1;
-}
-
-.connect-btn {
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  color: #efe2c6;
-  padding: 6px 12px;
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.wallet-chip {
-  border: 1px solid #efe2c6;
-  padding: 4px 12px;
-  font-size: 14px;
-  color: #efe2c6;
-}
 /***** Main Content *****/
 .main-container {
   max-width: 1024px;
@@ -600,13 +585,30 @@ a {
 }
 
 /* Logo */
-/*.logo-container {
-  margin-bottom: 40px;
-}*/
-
 .logo {
   height: 180px;
   width: auto;
+}
+
+/* connect btn */
+.connect-btn-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  max-width: 680px;
+  margin: 0 auto 32px auto;
+  width: 100%;
+}
+
+.connect-btn {
+  padding: 6px 12px;
+  font-size: 18px;
+}
+
+.wallet-chip {
+  padding: 6px 12px;
+  font-size: 18px;
 }
 
 /* Balance display */
@@ -649,7 +651,7 @@ a {
   width: 100%;
   background-color: transparent;
   border: 1px solid #efe2c6;
-  border-radius: 4px;
+  border-radius: 8px;
   color: #ffffff;
   font-size: 16px;
   padding: 10px 50px 10px 16px;
@@ -662,7 +664,7 @@ a {
 }
 .stake-input:-moz-placeholder {
   /* FF 4-18 */
-  color: red;
+  color: #ffffff;
   opacity: 0.5;
 }
 .stake-input::-moz-placeholder {
@@ -699,18 +701,7 @@ a {
 }
 
 .stake-btn {
-  background-color: #efe2c6;
-  border: 1px solid #efe2c6;
-  border-radius: 4px;
-  color: #004d3b;
-  font-weight: 600;
   min-width: 80px;
-  cursor: pointer;
-}
-.stake-btn:hover {
-  background-color: #004d3b !important;
-  border: 1px solid #efe2c6;
-  color: #efe2c6;
 }
 
 .stake-btn:disabled {
@@ -742,19 +733,17 @@ a {
 
 /* Claim button */
 .claim-btn {
-  background-color: #efe2c6;
-  border: 1px solid #efe2c6;
-  border-radius: 4px;
-  color: #004d3b;
-  font-weight: 600;
   padding: 10px 24px;
   margin-top: 32px;
-  cursor: pointer;
 }
-.claim-btn:hover {
-  background-color: #004d3b !important;
+
+.btn {
+  background-color: #004d3b;
   border: 1px solid #efe2c6;
+  border-radius: 8px;
   color: #efe2c6;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .btn:disabled {
@@ -765,7 +754,9 @@ a {
 .btn:not(:disabled):hover{
   transform:translateY(-2px) scale(1.03);
   box-shadow:0 6px 16px rgba(0,0,0,.35);
-  background:#3a3a3a;                 /* ほんのり明るく */
+  background-color: #efe2c6 !important;
+  border: 1px solid #efe2c6;
+  color: #004d3b;
 }
 
 .claim-btn:not(:disabled):active{
