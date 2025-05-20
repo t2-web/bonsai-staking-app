@@ -90,20 +90,6 @@
           <span class="hash">{{ stakeContractAddress }}</span>
         </a>
       </div>
-
-      <div class="how-it-works-container">
-        <span>How it Works</span>
-        <div class="how-it-works-links-wrapper">
-          <a :href="'https://medium.com/@bonsaicoin/bonsai-bank-800e8e0cff27'" target="_blank" rel="noopener" class="how-it-works-link">
-            <img src="../src/assets/medium_logo.png" alt="Medium" class="how-it-works-link-img" />
-            <span class="how-it-works-link-text">EN</span>
-          </a>
-          <a :href="'https://note.com/bonsaicoin/n/n25dda0ee2f1b'" target="_blank" rel="noopener" class="how-it-works-link">
-            <img src="../src/assets/note_logo.png" alt="Note" class="how-it-works-link-img" />
-            <span class="how-it-works-link-text">JP</span>
-          </a>
-        </div>
-      </div>
     </main>
 
     <!-- ────────── FOOTER ────────── -->
@@ -585,12 +571,6 @@ a {
   cursor: pointer;
 }
 
-/* .wallet-chip {
-  border: 1px solid #ffffff;
-  border-radius: 16px;
-  padding: 4px 12px;
-  font-size: 14px;
-} */
 .wallet-chip {
   border: 1px solid #efe2c6;
   padding: 4px 12px;
@@ -599,7 +579,6 @@ a {
 }
 /***** Main Content *****/
 .main-container {
-  /* max-width: 680px; */
   max-width: 1024px;
   margin: 0 auto;
   padding: 48px 16px 64px;
@@ -823,25 +802,6 @@ a {
 .copyright {
   color: #888888;
   font-size: 12px;
-}
-
-.how-it-works-container {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-.how-it-works-container .how-it-works-links-wrapper {
-  display: inline-flex;
-  justify-content: center;
-  column-gap: 2em;
-}
-.how-it-works-container .how-it-works-links-wrapper .how-it-works-link {
-  display: flex;
-  flex-direction: column;
-  color: #ffffff;
-}
-.how-it-works-container .how-it-works-links-wrapper .how-it-works-link .how-it-works-link-img {
-  width: 120px;
 }
 
 /* Responsive tweaks */
