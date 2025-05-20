@@ -7,9 +7,15 @@
         <button class="nav-btn active">BONSAI BANK</button>
         <div class="spacer"></div>
         <!-- 接続前 -->
-        <button v-if="!isConnected" class="connect-btn" @click="connectWallet">
-          Connect Wallet
-        </button>
+        
+        <template v-if="!isConnected">
+          <button
+            class="connect-btn"
+            @click="connectWallet()"
+          >
+            Connect Wallet
+          </button>
+        </template>
         <!-- 接続後：クリックで切断 -->
         <div v-else class="wallet-chip" @click="disconnectWallet">
           {{ shortAddress }}
@@ -100,36 +106,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, markRaw, h } from 'vue'
+import { ref, computed, onMounted, markRaw, h, watch } from 'vue'
 import { ethers } from 'ethers'
 import { useToast, TYPE } from 'vue-toastification'
 
 import ERC20 from '@/abi/ERC20.json'
 import StakingContract from '@/abi/ERC20Staking.json'
+import { configureChains, createConfig, disconnect, getAccount, getWalletClient, watchAccount, type Chain } from '@wagmi/core';
+import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum';
+import { base, baseSepolia } from '@wagmi/core/chains'
+import { Web3Modal } from '@web3modal/html';
 
 // Stakelist
 // https://base-sepolia.blockscout.com/advanced-filter?transaction_types=ERC-20%2CERC-404%2CERC-721%2CERC-1155&to_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902&from_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902%2C0x9035ae14AF7C27cEffcbc1Ce626e0663f877813f
 
 /* ---------- ネットワーク定義 ---------- */
 // テストネット
-// const CHAIN_ID      = 84532                              // 10進数
-// const RPC_URL       = 'https://sepolia.base.org'
-// const EXPLORER_URL  = 'base-sepolia.blockscout.com'
-// const CHAIN_NAME    = 'Base Sepolia'
+// const chain = baseSepolia                              // 10進数
 // const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
 // const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
 
 // メインネット
-const CHAIN_ID      = 8453
-const RPC_URL       = 'https://base.drpc.org'
-const EXPLORER_URL  = 'base.blockscout.com'
-const CHAIN_NAME    = 'Base'
+const chain = base
 const tokenAddress = '0xA0aeBd4Ae5F256B72B7D43f67eD934237Adb1AeE' //bonsai
 const stakeContractAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3' //1hour
 
+const chains: Chain[] = [chain]
+const projectId = '11de27f464d53a18220d68841ac45f99'
+const EXPLORER_URL = chain.blockExplorers?.default?.url ?? ''
+
 // ────────── STATE ──────────
-const address  = ref('')
 const provider = ref()
+const address = ref()
 const signer   = ref()
 const status   = ref('')
 const balance   = ref<number | null>(null)
@@ -142,6 +150,81 @@ const claimable = ref<number | null>(null)   // ← 初期値 null で「取得�
 const claimed   = ref<number | null>(null)
 
 const toast = useToast()
+const web3modal = ref<Web3Modal>()
+
+function initConnectModal() {
+  // Configure the chains
+  const { publicClient } = configureChains(chains, [w3mProvider({ projectId })])
+  const wagmiConfig = createConfig({
+    autoConnect: false,
+    connectors: w3mConnectors({ projectId, chains: chains }),
+    publicClient
+  })
+  const ethereumClient = new EthereumClient(wagmiConfig, chains)
+
+  web3modal.value = new Web3Modal({ 
+    projectId,
+    themeVariables: {
+      '--w3m-accent-color': '#004d3b',
+      '--w3m-button-border-radius': '999px',
+      '--w3m-text-medium-regular-size': '14px',
+      '--w3m-background-color': '#004d3b',
+    }
+  }, ethereumClient)
+
+  // Disconnect from any previous connection
+  disconnect()
+
+  // Watch for account changes
+  watchAccount(async () => {
+    const account = getAccount()
+    if (account && chain) {
+      const walletClient = await getWalletClient({ chainId: chain.id })
+      if (walletClient) {
+        const { chain, transport } = walletClient
+        const network = {
+          chainId: chain.id,
+          name: chain.name,
+        }
+
+        address.value = account.address
+        provider.value = markRaw(new ethers.providers.Web3Provider(transport, network))
+        signer.value = markRaw(provider.value.getSigner(account.address))
+
+        fetchTokenBalance()
+        fetchClaimData()
+      }
+    } else {
+      address.value = null
+      provider.value = null
+      signer.value = null
+      balance.value = null
+      staked.value = null
+      claimable.value = null
+      claimed.value = null
+    }
+  })
+}
+
+
+async function connectWallet() {
+  if (!web3modal.value) {
+    const msg = 'Web3Modal is not initialized'
+    toast.error(`❌ ${msg}`, { timeout: 6000 })
+    return
+  }
+  await web3modal.value.openModal()
+}
+
+/* ——————— 切断処理 ——————— */
+function disconnectWallet () {
+  disconnect()
+}
+
+/* ────────── 自動復旧 (任意) ────────── */
+onMounted(() => {
+  initConnectModal()
+})
 
 /* ---------- util: 10 進 → 16 進 ---------- */
 const toHex = (id: number) => '0x' + id.toString(16)
@@ -152,7 +235,7 @@ function goTop() {
 }
 
 const staticProvider = new ethers.providers.JsonRpcProvider(
-  RPC_URL         // ← ③
+  chain.rpcUrls.default.http[0]         // ← ③
 )
 
 /* ────────── HELPERS ────────── */
@@ -221,81 +304,6 @@ const shortFilterUrl = computed(() => {
   if (!txFilterUrl.value) return ''
   const full = txFilterUrl.value
   return full.length > 48 ? full.slice(0, 32) + '…' + full.slice(-10) : full
-})
-
-/* ────────── WALLET: MetaMask only ────────── */
-async function connectWallet () {
-  const mm = (window as any).ethereum
-  if (!mm) {
-    status.value = '❌ MetaMask が見つかりません'
-    return
-  }
-
-  /* ---------- ① ネットワーク確認／スイッチ ---------- */
-  let current = await mm.request({ method: 'eth_chainId' })
-  /* 1. チェーンをチェックして Base Sepolia へ切替 */
-  const cur = await mm.request({ method: 'eth_chainId' })
-  if (cur !== toHex(CHAIN_ID)) {
-    try {
-      await mm.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: toHex(CHAIN_ID) }],
-      })
-    } catch (err: any) {
-      if (err.code === 4902) {                       // 未登録なら追加
-        await mm.request({
-          method: 'wallet_addEthereumChain',
-          params: [{
-            chainId:          toHex(CHAIN_ID),
-            chainName:        CHAIN_NAME,
-            rpcUrls:          [RPC_URL],
-            blockExplorerUrls:[EXPLORER_URL],
-            nativeCurrency:   { name: 'ETH', symbol: 'ETH', decimals: 18 },
-          }],
-        })
-      } else {
-        status.value = '❌ ネットワーク切替に失敗'
-        return
-      }
-    }
-  }
-
-  /* ---------- ② アカウント取得 ---------- */
-  let accounts = await mm.request({ method: 'eth_accounts' })
-  address.value  = accounts[0]
-  // if (accounts.length === 0)
-  //   accounts = await mm.request({ method: 'eth_requestAccounts' })
-
-  /* ---------- ③ Provider / Signer ---------- */
-  provider.value = markRaw(new ethers.providers.Web3Provider(mm, CHAIN_ID))
-  signer.value   = markRaw(provider.value.getSigner())
-
-  status.value   = `✅ Connected to ${CHAIN_NAME}`
-
-  await fetchTokenBalance()
-  await fetchClaimData()
-
-  /* ---------- ④ ネットワーク・アカウント変更監視 ---------- */
-  mm.on?.('chainChanged', () => window.location.reload())
-  mm.on?.('accountsChanged', async (a: string[]) => {
-    address.value = a[0] ?? ''
-    await fetchTokenBalance()
-    await fetchClaimData()
-  })
-}
-
-/* ——————— 切断処理 ——————— */
-function disconnectWallet () {
-  provider.value = undefined
-  signer.value   = undefined
-  address.value  = ''
-  balance.value  = null
-  status.value   = '👋 Disconnected'
-}
-
-/* ────────── 自動復旧 (任意) ────────── */
-onMounted(() => {
-  connectWallet()    // ページ読み込み時に一度だけ試行
 })
 
 /* ────────── Approve & getBalance ────────── */
@@ -428,8 +436,12 @@ async function stake () {
 
     status.value = '✅ Stake success'
     amount.value = ''
-    await fetchTokenBalance()
-    await fetchClaimData()
+
+    // Make sure the tx is confirmed
+    setTimeout(async () => {
+      await fetchTokenBalance()
+      await fetchClaimData()
+    }, 3000)
 
   } catch (err) {
     const msg = (err as any).reason ?? (err as any).message ?? '❌ Stake failed'
