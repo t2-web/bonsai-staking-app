@@ -3,8 +3,8 @@
     <!-- ────────── HEADER ────────── -->
     <header class="app-header">
       <div class="nav-container">
-        <button class="nav-btn" @click="goTop">Top</button>
-        <button class="nav-btn active">BONSAI BANK</button>
+        <!-- <button class="nav-btn" @click="goTop">Top</button>
+        <button class="nav-btn active">BONSAI BANK</button> -->
       </div>
     </header>
 
@@ -130,7 +130,8 @@ import { Web3Modal } from '@web3modal/html';
 // メインネット
 const chain = base
 const tokenAddress = '0xA0aeBd4Ae5F256B72B7D43f67eD934237Adb1AeE' //bonsai
-const stakeContractAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3' //1hour
+// const stakeContractAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3' //1hour
+const stakeContractAddress = '0xb447894a8FE006Fa2caFe16b7B49E7F2c770d08C' //1　 year
 
 const chains: Chain[] = [chain]
 const projectId = '11de27f464d53a18220d68841ac45f99'
