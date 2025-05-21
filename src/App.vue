@@ -302,7 +302,7 @@ const txFilterUrl = computed(() => {
     fadd: address.value
   }).toString()
 
-  return `${EXPLORER_URL}/advanced-filter?${qs}`
+  return `${EXPLORER_URL}/advanced-filter?${qs}&qt=1`
 })
 
 const shortFilterUrl = computed(() => {
