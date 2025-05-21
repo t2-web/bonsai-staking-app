@@ -100,9 +100,9 @@
     </main>
 
     <!-- ────────── FOOTER ────────── -->
-    <footer class="app-footer">
+    <!-- <footer class="app-footer">
       <div class="copyright">© 2025 by SBONSAICOIN</div>
-    </footer>
+    </footer> -->
   </div>
 </template>
 
