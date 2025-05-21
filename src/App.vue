@@ -86,14 +86,14 @@
       <!-- TX STATUS -->
       <div class="tx-link" v-if="txFilterUrl">
         Stake Tx Link :
-        <a :href="`https://${txFilterUrl}`" target="_blank" rel="noopener">
+        <a :href="`${txFilterUrl}`" target="_blank" rel="noopener">
           <span class="hash">{{ shortFilterUrl }}</span>
         </a>
       </div>
 
       <div class="tx-link" >
         Stake Address :
-        <a :href="`https://${EXPLORER_URL}/address/${stakeContractAddress}`" target="_blank" rel="noopener">
+        <a :href="`${EXPLORER_URL}/address/${stakeContractAddress}`" target="_blank" rel="noopener">
           <span class="hash">{{ stakeContractAddress }}</span>
         </a>
       </div>
