@@ -298,8 +298,8 @@ const txFilterUrl = computed(() => {
   if (!address.value) return ''
 
   const qs = new URLSearchParams({
-    to_address_hashes_to_include: stakeContractAddress,
-    from_address_hashes_to_include: address.value
+    tadd: stakeContractAddress,
+    fadd: address.value
   }).toString()
 
   return `${EXPLORER_URL}/advanced-filter?${qs}`
