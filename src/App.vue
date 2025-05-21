@@ -115,7 +115,7 @@ import ERC20 from '@/abi/ERC20.json'
 import StakingContract from '@/abi/ERC20Staking.json'
 import { configureChains, createConfig, disconnect, getAccount, getWalletClient, watchAccount, type Chain } from '@wagmi/core';
 import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum';
-import { base, baseSepolia } from '@wagmi/core/chains'
+import { base } from '@wagmi/core/chains'
 import { Web3Modal } from '@web3modal/html';
 
 // Stakelist
@@ -356,9 +356,7 @@ async function fetchClaimData () {
 
   claimable.value = Number(ethers.utils.formatEther(unlocked))
   claimed.value   = Number(ethers.utils.formatEther(already))
-  staked.value    = Number(
-    ethers.utils.formatEther(unlocked.add(already))
-  )
+  staked.value    = Number(ethers.utils.formatEther(locked))
 }
 /* ────────── STAKE  ────────── */
 async function stake () {
