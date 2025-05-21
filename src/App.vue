@@ -130,6 +130,7 @@ import { configureChains, createConfig, disconnect, getAccount, getWalletClient,
 import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum';
 import { base, baseSepolia } from '@wagmi/core/chains'
 import { Web3Modal } from '@web3modal/html';
+import { RECOMMENDED_WALLETS } from '@/constants/wallet'
 
 // Stakelist
 // https://base-sepolia.blockscout.com/advanced-filter?transaction_types=ERC-20%2CERC-404%2CERC-721%2CERC-1155&to_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902&from_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902%2C0x9035ae14AF7C27cEffcbc1Ce626e0663f877813f
@@ -183,7 +184,9 @@ function initConnectModal() {
       '--w3m-button-border-radius': '999px',
       '--w3m-text-medium-regular-size': '14px',
       '--w3m-background-color': '#004d3b',
-    }
+    },
+    explorerRecommendedWalletIds: RECOMMENDED_WALLETS,
+    explorerExcludedWalletIds: "ALL",
   }, ethereumClient)
 
   // Disconnect from any previous connection
