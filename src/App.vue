@@ -29,7 +29,6 @@
         <div v-else class="wallet-info-container">
           <button 
             class="btn network-switch-btn"
-            :disabled="isOnCorrectNetwork"
             :class="{ 'correct-network': isOnCorrectNetwork, 'wrong-network': !isOnCorrectNetwork }"
             @click="switchToBaseNetwork"
           >
@@ -538,12 +537,6 @@ async function claimAll () {
 }
 
 async function switchToBaseNetwork() {
-  const network = getNetwork()
-  const isBase = network.chain?.id === chain.id
-  if (isBase) {
-    return
-  }
-
   try {
     toast.info('⏳ Switching to Base network...', { timeout: 8000 })
     await switchNetwork({ chainId: chain.id })
@@ -878,15 +871,6 @@ a {
 .network-switch-btn.wrong-network:hover {
   background-color: #991b1b;
   transform: translateY(-1px);
-}
-
-.network-switch-btn:disabled {
-  opacity: 0.8;
-  cursor: not-allowed;
-}
-
-.network-switch-btn:disabled:hover {
-  transform: none;
 }
 
 /* Responsive tweaks */
