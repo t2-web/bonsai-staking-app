@@ -288,7 +288,8 @@ function formatNumber(n: number) {
 function setMax() {
   if (balance.value !== null) {
     // balance.valueがnullでない場合にのみ、amount.valueを更新
-    amount.value = formatNumber(balance.value)
+    // 小数点以下を切り捨てて整数部分のみ使用
+    amount.value = Math.floor(balance.value).toString()
   }
 }
 
