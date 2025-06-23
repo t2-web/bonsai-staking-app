@@ -25,9 +25,19 @@
             Connect Wallet
           </button>
         </template>
-        <!-- 接続後：クリックで切断 -->
-        <div v-else class="wallet-chip btn" @click="disconnectWallet">
-          {{ shortAddress }}
+        <!-- 接続後：ネットワーク切替 + アドレス表示 -->
+        <div v-else class="wallet-info-container">
+          <button 
+            class="btn network-switch-btn"
+            :class="{ 'correct-network': isOnCorrectNetwork, 'wrong-network': !isOnCorrectNetwork }"
+            @click="switchToBaseNetwork"
+          >
+            <span v-if="isOnCorrectNetwork">✓ Base</span>
+            <span v-else>Switch to Base</span>
+          </button>
+          <div class="wallet-chip btn" @click="disconnectWallet">
+            {{ shortAddress }}
+          </div>
         </div>
       </div>
 
@@ -110,12 +120,13 @@
 import { ref, computed, onMounted, markRaw, h, watch } from 'vue'
 import { ethers } from 'ethers'
 import { useToast, TYPE } from 'vue-toastification'
+import NetworkSwitch from '@/components/NetworkSwitch.vue'
 
 import ERC20 from '@/abi/ERC20.json'
 import StakingContract from '@/abi/ERC20Staking.json'
-import { configureChains, createConfig, disconnect, getAccount, getWalletClient, watchAccount, type Chain } from '@wagmi/core';
+import { configureChains, createConfig, disconnect, getAccount, getWalletClient, watchAccount, getNetwork, switchNetwork, type Chain } from '@wagmi/core';
 import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum';
-import { base } from '@wagmi/core/chains'
+import { base, baseSepolia } from '@wagmi/core/chains'
 import { Web3Modal } from '@web3modal/html';
 import { RECOMMENDED_WALLETS } from '@/constants/wallet'
 
@@ -155,6 +166,11 @@ const claimed   = ref<number | null>(null)
 const toast = useToast()
 const web3modal = ref<Web3Modal>()
 
+const currentChainId = ref<number | null>(null)
+const isOnCorrectNetwork = computed(() => {
+  return currentChainId.value === chain.id
+})
+
 function initConnectModal() {
   // Configure the chains
   const { publicClient } = configureChains(chains, [w3mProvider({ projectId })])
@@ -187,6 +203,10 @@ function initConnectModal() {
       const walletClient = await getWalletClient({ chainId: chain.id })
       if (walletClient) {
         const { chain, transport } = walletClient
+
+        // This is user wallet network
+        currentChainId.value = getNetwork().chain?.id
+
         const network = {
           chainId: chain.id,
           name: chain.name,
@@ -268,7 +288,8 @@ function formatNumber(n: number) {
 function setMax() {
   if (balance.value !== null) {
     // balance.valueがnullでない場合にのみ、amount.valueを更新
-    amount.value = formatNumber(balance.value)
+    // 小数点以下を切り捨てて整数部分のみ使用
+    amount.value = Math.floor(balance.value).toString()
   }
 }
 
@@ -515,6 +536,23 @@ async function claimAll () {
     status.value = '❌ Claim failed'
   }
 }
+
+async function switchToBaseNetwork() {
+  try {
+    toast.info('⏳ Switching to Base network...', { timeout: 8000 })
+    await switchNetwork({ chainId: chain.id })
+    await fetchTokenBalance()
+    await fetchClaimData()
+
+    currentChainId.value = chain.id
+  
+    toast.success('✅ Successfully switched to Base network', { timeout: 3000 })
+  } catch (error) {
+    const errorMessage = (error as any)?.message || 'Failed to switch network'
+    toast.error(`❌ ${errorMessage}`, { timeout: 5000 })
+    console.error('Network switch error:', error)
+  }
+}
 </script>
 
 <style scoped>
@@ -606,6 +644,12 @@ a {
 .connect-btn {
   padding: 6px 12px;
   font-size: 18px;
+}
+
+.wallet-info-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .wallet-chip {
@@ -807,6 +851,27 @@ a {
 .copyright {
   color: #888888;
   font-size: 12px;
+}
+
+.network-switch-btn {
+  font-size: 18px;
+  padding: 6px 12px;
+}
+
+.network-switch-btn:focus {
+  outline: none;
+  border-color: #efe2c6;
+}
+
+.network-switch-btn.wrong-network {
+  background-color: #7f1d1d;
+  border-color: #f87171;
+  color: #f87171;
+}
+
+.network-switch-btn.wrong-network:hover {
+  background-color: #991b1b;
+  transform: translateY(-1px);
 }
 
 /* Responsive tweaks */
