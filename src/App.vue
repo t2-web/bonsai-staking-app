@@ -35,7 +35,7 @@
             <span v-if="isOnCorrectNetwork">✓ Base</span>
             <span v-else>Switch to Base</span>
           </button>
-          <div class="wallet-chip btn" @click="disconnectWallet">
+          <div class="wallet-chip btn" @click="handleDisconnect">
             {{ shortAddress }}
           </div>
         </div>
@@ -120,32 +120,41 @@
 import { ref, computed, onMounted, markRaw, h, watch } from 'vue'
 import { ethers } from 'ethers'
 import { useToast, TYPE } from 'vue-toastification'
-import NetworkSwitch from '@/components/NetworkSwitch.vue'
 
 import ERC20 from '@/abi/ERC20.json'
 import StakingContract from '@/abi/ERC20Staking.json'
-import { configureChains, createConfig, disconnect, getAccount, getWalletClient, watchAccount, getNetwork, switchNetwork, type Chain } from '@wagmi/core';
-import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum';
-import { base, baseSepolia } from '@wagmi/core/chains'
-import { Web3Modal } from '@web3modal/html';
+import { useWalletConnect } from '@/composables/useWalletConnect'
 import { RECOMMENDED_WALLETS } from '@/constants/wallet'
 
 // Stakelist
 // https://base-sepolia.blockscout.com/advanced-filter?transaction_types=ERC-20%2CERC-404%2CERC-721%2CERC-1155&to_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902&from_address_hashes_to_include=0x835Acf913aE99e97096f6c10D324515a4F12A902%2C0x9035ae14AF7C27cEffcbc1Ce626e0663f877813f
 
+// Get wallet connect utilities
+const { 
+  initConnectModal, 
+  disconnectWallet, 
+  switchToNetwork, 
+  getCurrentAccount, 
+  watchAccountChanges, 
+  getWalletClient, 
+  web3modal, 
+  base, 
+  baseSepolia 
+} = useWalletConnect()
+
 /* ---------- ネットワーク定義 ---------- */
 // テストネット
-// const chain = baseSepolia                              // 10進数
-// const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
-// const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
+const chain = baseSepolia                              // 10進数
+const tokenAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3'
+const stakeContractAddress = '0x835Acf913aE99e97096f6c10D324515a4F12A902'
 
 // メインネット
-const chain = base
-const tokenAddress = '0xA0aeBd4Ae5F256B72B7D43f67eD934237Adb1AeE' //bonsai
-// const stakeContractAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3' //1hour
-const stakeContractAddress = '0xb447894a8FE006Fa2caFe16b7B49E7F2c770d08C' //1　 year
+// const chain = base
+// const tokenAddress = '0xA0aeBd4Ae5F256B72B7D43f67eD934237Adb1AeE' //bonsai
+// // const stakeContractAddress = '0x5e1C5AccE47aA5c6eC23dEFF9330263729F652D3' //1hour
+// const stakeContractAddress = '0xb447894a8FE006Fa2caFe16b7B49E7F2c770d08C' //1　 year
 
-const chains: Chain[] = [chain]
+const chains = [chain]
 const projectId = '11de27f464d53a18220d68841ac45f99'
 const EXPLORER_URL = chain.blockExplorers?.default?.url ?? ''
 
@@ -164,62 +173,66 @@ const claimable = ref<number | null>(null)   // ← 初期値 null で「取得�
 const claimed   = ref<number | null>(null)
 
 const toast = useToast()
-const web3modal = ref<Web3Modal>()
 
 const currentChainId = ref<number | null>(null)
 const isOnCorrectNetwork = computed(() => {
   return currentChainId.value === chain.id
 })
 
-function initConnectModal() {
-  // Configure the chains
-  const { publicClient } = configureChains(chains, [w3mProvider({ projectId })])
-  const wagmiConfig = createConfig({
-    autoConnect: false,
-    connectors: w3mConnectors({ projectId, chains: chains }),
-    publicClient
-  })
-  const ethereumClient = new EthereumClient(wagmiConfig, chains)
-
-  web3modal.value = new Web3Modal({
+async function initModal() {
+  await initConnectModal({
     projectId,
-    themeVariables: {
-      '--w3m-accent-color': '#004d3b',
-      '--w3m-button-border-radius': '999px',
-      '--w3m-text-medium-regular-size': '14px',
-      '--w3m-background-color': '#004d3b',
-    },
-    explorerRecommendedWalletIds: RECOMMENDED_WALLETS,
-    explorerExcludedWalletIds: "ALL",
-  }, ethereumClient)
+    chains,
+    recommendedWallets: RECOMMENDED_WALLETS
+  })
 
-  // Disconnect from any previous connection
-  disconnect()
+  // Check current account immediately
+  const currentAccount = getCurrentAccount()
+  if (currentAccount && currentAccount.address) {
+    const walletClient = await getWalletClient(chain.id)
+    if (walletClient) {
+      const { chain: walletChain, transport } = walletClient
+
+      // This is user wallet network
+      currentChainId.value = currentAccount.chainId || null
+
+      const network = {
+        chainId: walletChain.id,
+        name: walletChain.name,
+      }
+
+      address.value = currentAccount.address
+      provider.value = markRaw(new ethers.providers.Web3Provider(transport as any, network))
+      signer.value = markRaw(provider.value.getSigner(currentAccount.address))
+
+      fetchTokenBalance()
+      fetchClaimData()
+    }
+  }
 
   // Watch for account changes
-  watchAccount(async () => {
-    const account = getAccount()
-    if (account && chain) {
-      const walletClient = await getWalletClient({ chainId: chain.id })
+  watchAccountChanges(async (account: any) => {
+    if (account.status === 'connected' && account.address) {
+      const walletClient = await getWalletClient(chain.id)
       if (walletClient) {
-        const { chain, transport } = walletClient
+        const { chain: walletChain, transport } = walletClient
 
         // This is user wallet network
-        currentChainId.value = getNetwork().chain?.id
+        currentChainId.value = account.chainId
 
         const network = {
-          chainId: chain.id,
-          name: chain.name,
+          chainId: walletChain.id,
+          name: walletChain.name,
         }
 
         address.value = account.address
-        provider.value = markRaw(new ethers.providers.Web3Provider(transport, network))
+        provider.value = markRaw(new ethers.providers.Web3Provider(transport as any, network))
         signer.value = markRaw(provider.value.getSigner(account.address))
 
         fetchTokenBalance()
         fetchClaimData()
       }
-    } else {
+    } else if (account.status === 'disconnected') {
       address.value = null
       provider.value = null
       signer.value = null
@@ -242,17 +255,22 @@ async function connectWallet() {
 }
 
 /* ——————— 切断処理 ——————— */
-function disconnectWallet () {
-  disconnect()
+async function handleDisconnect () {
+  // Clear UI state first
   address.value = ""
+  balance.value = null
   staked.value = null
   claimable.value = null
   claimed.value = null
+  currentChainId.value = null
+  
+  // Then disconnect
+  await disconnectWallet()
 }
 
 /* ────────── 自動復旧 (任意) ────────── */
 onMounted(() => {
-  initConnectModal()
+  initModal()
 })
 
 /* ---------- util: 10 進 → 16 進 ---------- */
@@ -540,7 +558,7 @@ async function claimAll () {
 async function switchToBaseNetwork() {
   try {
     toast.info('⏳ Switching to Base network...', { timeout: 8000 })
-    await switchNetwork({ chainId: chain.id })
+    await switchToNetwork(chain.id)
     await fetchTokenBalance()
     await fetchClaimData()
 
